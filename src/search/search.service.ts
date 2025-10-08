@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { PaginatedResponse, ProfessionalProfile } from "@profesional/contracts";
+import { PaginatedResponse, ProfessionalProfile } from "@marcosstevens2012/contracts";
 
 @Injectable()
 export class SearchService {

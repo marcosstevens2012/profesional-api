@@ -10,7 +10,7 @@ import {
   ProfessionalProfileView,
   SearchFilters,
   SearchFiltersSchema,
-} from "@profesional/contracts";
+} from "@marcosstevens2012/contracts";
 import { ZodValidationPipe } from "../common/pipes/zod-validation.pipe";
 
 @ApiTags("examples")

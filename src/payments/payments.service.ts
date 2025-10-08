@@ -4,7 +4,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import {
   MarketplacePreferenceRequest,
   MarketplacePreferenceResponse,
-} from "@profesional/contracts";
+} from "@marcosstevens2012/contracts";
 import { PrismaService } from "../database/prisma.service";
 import { CommissionService } from "./commission.service";
 import { MercadoPagoService } from "./mercadopago.service";

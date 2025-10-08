@@ -16,7 +16,7 @@ import {
   RegisterRequest,
   ResetPasswordRequest,
   VerifyEmailRequest,
-} from "@profesional/contracts";
+} from "@marcosstevens2012/contracts";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { Public } from "../common/decorators/public.decorator";
 import { JwtAuthGuard, JwtPayload } from "../common/guards/jwt-auth.guard";

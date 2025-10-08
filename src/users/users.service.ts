@@ -3,7 +3,7 @@ import type {
   CreateUserDTO,
   UpdateUserDTO,
   User,
-} from "@profesional/contracts";
+} from "@marcosstevens2012/contracts";
 
 @Injectable()
 export class UsersService {

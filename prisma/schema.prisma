@@ -26,26 +26,26 @@ enum UserStatus {
 }
 
 model User {
-  id        String     @id @default(cuid())
-  email     String     @unique
-  password  String
-  name      String?    // Nombre completo opcional
-  role      UserRole
-  status    UserStatus @default(PENDING_VERIFICATION)
+  id       String     @id @default(cuid())
+  email    String     @unique
+  password String
+  name     String? // Nombre completo opcional
+  role     UserRole
+  status   UserStatus @default(PENDING_VERIFICATION)
 
   // Audit fields
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime? // Soft delete
 
   // Relations
-  profile           Profile?
+  profile             Profile?
   professionalProfile ProfessionalProfile?
-  bookingsAsClient    Booking[] @relation("ClientBookings")
-  reviews           Review[]
-  notifications     Notification[]
-  verificationTokens VerificationToken[]
-  refreshTokens     RefreshToken[]
+  bookingsAsClient    Booking[]            @relation("ClientBookings")
+  reviews             Review[]
+  notifications       Notification[]
+  verificationTokens  VerificationToken[]
+  refreshTokens       RefreshToken[]
 
   @@index([email])
   @@index([status])
@@ -55,15 +55,15 @@ model User {
 }
 
 model Profile {
-  id        String @id @default(cuid())
-  userId    String @unique
+  id        String  @id @default(cuid())
+  userId    String  @unique
   firstName String
   lastName  String
   avatar    String? // URL to avatar image
   phone     String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime? // Soft delete
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -79,8 +79,8 @@ model ServiceCategory {
   order       Int     @default(0)
   brandId     String? // Para futuro white-label
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime? // Soft delete
 
   professionals ProfessionalProfile[]
@@ -109,12 +109,12 @@ model Location {
 model ProfessionalProfile {
   id                String   @id @default(cuid())
   userId            String   @unique
-  email             String?  // Email profesional (puede ser diferente al del User)
-  name              String?  // Nombre profesional
-  bio               String?  // Bio corta
-  description       String?  // Descripción larga
-  pricePerSession   Decimal  @default(25000.00) @db.Decimal(10,2)
-  standardDuration  Int      // Duración en minutos
+  email             String? // Email profesional (puede ser diferente al del User)
+  name              String? // Nombre profesional
+  bio               String? // Bio corta
+  description       String? // Descripción larga
+  pricePerSession   Decimal  @default(25000.00) @db.Decimal(10, 2)
+  standardDuration  Int // Duración en minutos
   serviceCategoryId String
   tags              String[] // Array de tags
   locationId        String
@@ -122,23 +122,23 @@ model ProfessionalProfile {
   reviewCount       Int      @default(0)
   isVerified        Boolean  @default(false)
   isActive          Boolean  @default(true)
-  brandId           String?  // Para futuro white-label
+  brandId           String? // Para futuro white-label
 
   // MercadoPago credentials - Por ahora NO se usan para split, solo informativo
-  mercadoPagoEmail  String?  // Email de cuenta MP del profesional
-  mercadoPagoUserId String?  // MP User ID (para futuro marketplace split)
+  mercadoPagoEmail  String? // Email de cuenta MP del profesional
+  mercadoPagoUserId String? // MP User ID (para futuro marketplace split)
   mpConfiguredAt    DateTime? // Fecha cuando configuró MP
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime? // Soft delete
 
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  serviceCategory ServiceCategory @relation(fields: [serviceCategoryId], references: [id])
-  location        Location        @relation(fields: [locationId], references: [id])
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serviceCategory   ServiceCategory    @relation(fields: [serviceCategoryId], references: [id])
+  location          Location           @relation(fields: [locationId], references: [id])
   availabilitySlots AvailabilitySlot[]
-  bookings        Booking[]
-  reviews         Review[]
+  bookings          Booking[]
+  reviews           Review[]
 
   @@index([email])
   @@index([serviceCategoryId])
@@ -167,21 +167,21 @@ enum DayOfWeek {
 }
 
 model AvailabilitySlot {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   professionalId String
   type           SlotType
 
   // Para slots recurrentes
-  dayOfWeek      DayOfWeek?
-  startTime      String?   // HH:mm format
-  endTime        String?   // HH:mm format
+  dayOfWeek DayOfWeek?
+  startTime String? // HH:mm format
+  endTime   String? // HH:mm format
 
   // Para slots específicos
-  specificDate   DateTime?
-  specificStart  DateTime?
-  specificEnd    DateTime?
+  specificDate  DateTime?
+  specificStart DateTime?
+  specificEnd   DateTime?
 
-  isActive       Boolean   @default(true)
+  isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -196,52 +196,52 @@ model AvailabilitySlot {
 }
 
 enum BookingStatus {
-  PENDING_PAYMENT       // Cliente creó booking, esperando pago
-  WAITING_FOR_PROFESSIONAL  // Pago aprobado, esperando que profesional acepte
-  PENDING               // Profesional aceptó, pendiente de iniciar
-  CONFIRMED             // Confirmado y listo para la reunión
-  IN_PROGRESS           // Reunión en curso
-  COMPLETED             // Reunión finalizada
-  CANCELLED             // Cancelado
-  NO_SHOW               // Cliente no se presentó
+  PENDING_PAYMENT // Cliente creó booking, esperando pago
+  WAITING_FOR_PROFESSIONAL // Pago aprobado, esperando que profesional acepte
+  PENDING // Profesional aceptó, pendiente de iniciar
+  CONFIRMED // Confirmado y listo para la reunión
+  IN_PROGRESS // Reunión en curso
+  COMPLETED // Reunión finalizada
+  CANCELLED // Cancelado
+  NO_SHOW // Cliente no se presentó
 }
 
 enum MeetingStatus {
-  PENDING      // Antes del pago
-  WAITING      // Cliente pagó, esperando que profesional acepte
-  ACTIVE       // Reunión en curso
-  COMPLETED    // Reunión finalizada
-  CANCELLED    // Reunión cancelada
-  EXPIRED      // Tiempo de espera agotado
+  PENDING // Antes del pago
+  WAITING // Cliente pagó, esperando que profesional acepte
+  ACTIVE // Reunión en curso
+  COMPLETED // Reunión finalizada
+  CANCELLED // Reunión cancelada
+  EXPIRED // Tiempo de espera agotado
 }
 
 model Booking {
-  id               String        @id @default(cuid())
-  clientId         String
-  professionalId   String
-  scheduledAt      DateTime
-  duration         Int           @default(60) // minutes
-  price            Decimal       @db.Decimal(10,2)
-  notes            String?       @db.Text
-  status           BookingStatus @default(PENDING_PAYMENT)
-  cancelledAt      DateTime?
-  cancellationReason String?     @db.Text
-  paymentId        String?       @unique
+  id                 String        @id @default(cuid())
+  clientId           String
+  professionalId     String
+  scheduledAt        DateTime
+  duration           Int           @default(60) // minutes
+  price              Decimal       @db.Decimal(10, 2)
+  notes              String?       @db.Text
+  status             BookingStatus @default(PENDING_PAYMENT)
+  cancelledAt        DateTime?
+  cancellationReason String?       @db.Text
+  paymentId          String?       @unique
 
   // Campos para Jitsi Meeting
-  jitsiRoom        String?       // Nombre único de la sala Jitsi (slug-uuid)
-  meetingStatus    MeetingStatus @default(PENDING)
-  meetingStartTime DateTime?     // Cuando el profesional acepta la reunión
-  meetingEndTime   DateTime?     // Cuando termina la reunión (18 min después)
-  meetingAcceptedAt DateTime?    // Timestamp cuando profesional acepta
+  jitsiRoom         String? // Nombre único de la sala Jitsi (slug-uuid)
+  meetingStatus     MeetingStatus @default(PENDING)
+  meetingStartTime  DateTime? // Cuando el profesional acepta la reunión
+  meetingEndTime    DateTime? // Cuando termina la reunión (18 min después)
+  meetingAcceptedAt DateTime? // Timestamp cuando profesional acepta
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  client        User                @relation("ClientBookings", fields: [clientId], references: [id])
-  professional  ProfessionalProfile @relation(fields: [professionalId], references: [id])
-  payment       Payment?            @relation(fields: [paymentId], references: [id])
-  reviews       Review[]
+  client       User                @relation("ClientBookings", fields: [clientId], references: [id])
+  professional ProfessionalProfile @relation(fields: [professionalId], references: [id])
+  payment      Payment?            @relation(fields: [paymentId], references: [id])
+  reviews      Review[]
 
   @@index([clientId])
   @@index([professionalId])
@@ -264,25 +264,25 @@ enum PaymentStatus {
   REFUNDED
   CHARGED_BACK
   COMPLETED // Agregado para estado final exitoso
-  FAILED    // Agregado para estado final de fallo
+  FAILED // Agregado para estado final de fallo
 }
 
 model Payment {
-  id                String        @id @default(cuid())
-  provider          String        @default("MERCADOPAGO") // MP
-  preferenceId      String?       // MP preference ID
-  paymentId         String?       // MP payment ID
-  gatewayPaymentId  String?       // ID externo del gateway (MP payment ID)
-  status            PaymentStatus @default(PENDING)
-  amount            Decimal       @db.Decimal(10,2)
-  fee               Decimal       @default(0) @db.Decimal(10,2)
-  gatewayFees       Decimal       @default(0) @db.Decimal(10,2) // Fees del gateway (MP)
-  platformFee       Decimal       @default(0) @db.Decimal(10,2) // Fee de la plataforma
-  netAmount         Decimal       @db.Decimal(10,2)
-  currency          String        @default("ARS")
-  payerEmail        String?
-  metadata          Json?         // Metadata adicional (bookingId, etc.)
-  paidAt            DateTime?     // Fecha de pago aprobado
+  id               String        @id @default(cuid())
+  provider         String        @default("MERCADOPAGO") // MP
+  preferenceId     String? // MP preference ID
+  paymentId        String? // MP payment ID
+  gatewayPaymentId String? // ID externo del gateway (MP payment ID)
+  status           PaymentStatus @default(PENDING)
+  amount           Decimal       @db.Decimal(10, 2)
+  fee              Decimal       @default(0) @db.Decimal(10, 2)
+  gatewayFees      Decimal       @default(0) @db.Decimal(10, 2) // Fees del gateway (MP)
+  platformFee      Decimal       @default(0) @db.Decimal(10, 2) // Fee de la plataforma
+  netAmount        Decimal       @db.Decimal(10, 2)
+  currency         String        @default("ARS")
+  payerEmail       String?
+  metadata         Json? // Metadata adicional (bookingId, etc.)
+  paidAt           DateTime? // Fecha de pago aprobado
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -299,16 +299,16 @@ model Payment {
 }
 
 model PaymentEvent {
-  id              String   @id @default(cuid())
-  paymentId       String
-  externalId      String?  // ID del evento externo (MP)
-  type            String   // webhook type
-  status          String?  // Status del evento
-  rawPayload      Json     // Raw webhook payload
-  idempotencyKey  String   @unique
-  data            Json?    // Datos procesados del evento
-  processedAt     DateTime @default(now())
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  paymentId      String
+  externalId     String? // ID del evento externo (MP)
+  type           String // webhook type
+  status         String? // Status del evento
+  rawPayload     Json // Raw webhook payload
+  idempotencyKey String   @unique
+  data           Json? // Datos procesados del evento
+  processedAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
 
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
@@ -325,7 +325,7 @@ model Review {
   bookingId      String  @unique
   clientId       String
   professionalId String
-  rating         Int     // 1-5
+  rating         Int // 1-5
   comment        String?
   visible        Boolean @default(true)
 
@@ -346,7 +346,7 @@ model Review {
 enum NotificationType {
   BOOKING_CONFIRMED
   BOOKING_CANCELLED
-  BOOKING_REQUEST      // Nueva solicitud de consulta (pago aprobado)
+  BOOKING_REQUEST // Nueva solicitud de consulta (pago aprobado)
   PAYMENT_RECEIVED
   REVIEW_RECEIVED
   SYSTEM_NOTIFICATION
@@ -358,7 +358,7 @@ model Notification {
   type    NotificationType
   title   String
   message String
-  payload Json?            // Datos adicionales
+  payload Json? // Datos adicionales
   readAt  DateTime?
 
   createdAt DateTime @default(now())
@@ -373,11 +373,11 @@ model Notification {
 }
 
 model CommissionRule {
-  id          String  @id @default(cuid())
-  brandId     String? // Para futuro white-label
-  percentage  Float   @default(0) // Porcentaje de comisión
-  fixedFee    Decimal @default(0) @db.Decimal(10,2) // Fee fijo
-  isActive    Boolean @default(true)
+  id         String  @id @default(cuid())
+  brandId    String? // Para futuro white-label
+  percentage Float   @default(0) // Porcentaje de comisión
+  fixedFee   Decimal @default(0) @db.Decimal(10, 2) // Fee fijo
+  isActive   Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -398,7 +398,7 @@ enum TokenType {
 model VerificationToken {
   id        String    @id @default(cuid())
   userId    String?
-  email     String?   // Para reset password sin userId
+  email     String? // Para reset password sin userId
   token     String    @unique
   type      TokenType
   expiresAt DateTime
@@ -416,9 +416,9 @@ model VerificationToken {
 }
 
 model RefreshToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  token     String   @unique
+  token     String    @unique
   expiresAt DateTime
   revokedAt DateTime?
 
@@ -435,8 +435,8 @@ model RefreshToken {
 // ========== GLOBAL CONFIGURATION ==========
 
 model GlobalConfig {
-  id          String @id @default(cuid())
-  key         String @unique
+  id          String  @id @default(cuid())
+  key         String  @unique
   value       Json
   description String?
 

@@ -17,7 +17,7 @@ import type {
   CreateUserDTO,
   UpdateUserDTO,
   User,
-} from "@profesional/contracts";
+} from "@marcosstevens2012/contracts";
 import { Role, Roles } from "../common";
 import { UsersService } from "./users.service";
 

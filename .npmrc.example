@@ -1,0 +1,5 @@
+# NPM Configuration for GitHub Packages
+# Copy this file to .npmrc and set your GITHUB_TOKEN environment variable
+
+@marcosstevens2012:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}

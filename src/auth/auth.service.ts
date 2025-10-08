@@ -17,7 +17,7 @@ import {
   RegisterRequest,
   ResetPasswordRequest,
   VerifyEmailRequest,
-} from "@profesional/contracts";
+} from "@marcosstevens2012/contracts";
 import * as crypto from "crypto";
 import { JwtPayload } from "../common/guards/jwt-auth.guard";
 import { EmailService } from "../common/services/email.service";
