@@ -1,9 +1,9 @@
 [build]
 builder = "nixpacks"
-buildCommand = "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @profesional/api build"
+buildCommand = "npm ci && npm run build"
 
 [deploy]
-startCommand = "cd apps/api && pnpm start:prod"
+startCommand = "npm run start:prod"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "always"
