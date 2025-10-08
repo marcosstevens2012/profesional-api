@@ -1,16 +1,9 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm ci && npm run build"
 
 [deploy]
 startCommand = "npm run start:prod"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
-restartPolicyType = "always"
-
-[environment]
-NODE_ENV = "production"
-
-[services]
-redis = "redis"
-postgres = "postgresql"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
