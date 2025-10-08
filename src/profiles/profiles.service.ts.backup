@@ -1,0 +1,241 @@
+import { Injectable } from "@nestjs/common";
+import { ProfessionalProfile } from "@profesional/contracts";
+
+@Injectable()
+export class ProfilesService {
+  // Mock data for testing
+  private mockProfiles: Array<
+    ProfessionalProfile & {
+      user?: { name: string; avatarUrl?: string };
+      slug?: string;
+      location?: string;
+      skills?: string[];
+      responseTime?: string;
+      services?: Array<{ id: string; title: string; price: number }>;
+      reviews?: Array<{ id: string; rating: number; comment: string; client: string }>;
+    }
+  > = [
+  {
+    id: "1",
+    userId: "user1",
+    title: "Desarrollador Full-Stack",
+    description:
+      "Especialista en React, Node.js y bases de datos. Más de 5 años creando aplicaciones web modernas.",
+    location: "Buenos Aires, Argentina",
+    hourlyRate: 15000,
+    rating: 4.9,
+    reviewCount: 23,
+    isActive: true,
+    skills: ["React", "Node.js", "PostgreSQL", "TypeScript"],
+    experienceYears: 5,
+    languages: ["Español", "Inglés"],
+    responseTime: "2 horas",
+    slug: "juan-perez-dev",
+    user: {
+      id: "user1",
+      name: "Juan Pérez",
+      email: "juan@example.com",
+      avatarUrl: null,
+      isEmailVerified: true,
+    },
+    services: [
+      {
+        id: "s1",
+        title: "Desarrollo Frontend",
+        description: "Aplicaciones React y Next.js",
+        basePrice: 20000,
+      },
+      {
+        id: "s2",
+        title: "Desarrollo Backend",
+        description: "APIs REST con Node.js",
+        basePrice: 25000,
+      },
+    ],
+    reviews: [
+      {
+        id: "r1",
+        rating: 5,
+        comment:
+          "Excelente trabajo, muy profesional y cumplió con todos los tiempos acordados.",
+        createdAt: "2024-01-15T10:00:00Z",
+        user: { name: "María González" },
+      },
+    ],
+  },
+  {
+    id: "2",
+    userId: "user2",
+    title: "Diseñadora UX/UI",
+    description:
+      "Diseño de experiencias digitales centradas en el usuario. Experta en Figma y prototipado.",
+    location: "Córdoba, Argentina",
+    hourlyRate: 12000,
+    rating: 4.8,
+    reviewCount: 18,
+    isActive: true,
+    skills: ["Figma", "Adobe XD", "Photoshop", "Prototipado"],
+    experienceYears: 4,
+    languages: ["Español"],
+    responseTime: "1 hora",
+    slug: "ana-martinez-ux",
+    user: {
+      id: "user2",
+      name: "Ana Martínez",
+      email: "ana@example.com",
+      avatarUrl: null,
+      isEmailVerified: true,
+    },
+    services: [
+      {
+        id: "s3",
+        title: "Diseño UX/UI",
+        description: "Interfaces web y móviles",
+        basePrice: 18000,
+      },
+    ],
+    reviews: [
+      {
+        id: "r2",
+        rating: 5,
+        comment: "Diseños increíbles, muy creativa y profesional.",
+        createdAt: "2024-01-10T14:30:00Z",
+        user: { name: "Carlos López" },
+      },
+    ],
+  },
+  {
+    id: "3",
+    userId: "user3",
+    title: "Marketing Digital",
+    description:
+      "Especialista en estrategias de marketing digital, SEO y redes sociales.",
+    location: "Rosario, Argentina",
+    hourlyRate: 8000,
+    rating: 4.7,
+    reviewCount: 31,
+    isActive: true,
+    skills: ["SEO", "Google Ads", "Facebook Ads", "Analytics"],
+    experienceYears: 3,
+    languages: ["Español", "Inglés"],
+    responseTime: "3 horas",
+    slug: "luis-rodriguez-marketing",
+    user: {
+      id: "user3",
+      name: "Luis Rodríguez",
+      email: "luis@example.com",
+      avatarUrl: null,
+      isEmailVerified: true,
+    },
+    services: [
+      {
+        id: "s4",
+        title: "Campaña SEO",
+        description: "Optimización para motores de búsqueda",
+        basePrice: 15000,
+      },
+    ],
+    reviews: [
+      {
+        id: "r3",
+        rating: 4,
+        comment: "Buenos resultados en poco tiempo, recomendado.",
+        createdAt: "2024-01-05T09:15:00Z",
+        user: { name: "Sandra Díaz" },
+      },
+    ],
+  },
+];
+
+@Injectable()
+export class ProfilesService {
+  create(createProfileDto: any) {
+    return { message: "Profile created", data: createProfileDto };
+  }
+
+  findAll(query?: any) {
+    // Apply basic filtering
+    let filteredProfiles = [...mockProfiles];
+
+    if (query?.q) {
+      const searchTerm = query.q.toLowerCase();
+      filteredProfiles = filteredProfiles.filter(
+        profile =>
+          profile.title.toLowerCase().includes(searchTerm) ||
+          profile.description.toLowerCase().includes(searchTerm) ||
+          profile.user.name.toLowerCase().includes(searchTerm) ||
+          profile.skills.some(skill => skill.toLowerCase().includes(searchTerm))
+      );
+    }
+
+    if (query?.location) {
+      filteredProfiles = filteredProfiles.filter(profile =>
+        profile.location.toLowerCase().includes(query.location.toLowerCase())
+      );
+    }
+
+    if (query?.minPrice) {
+      filteredProfiles = filteredProfiles.filter(
+        profile => profile.hourlyRate >= parseInt(query.minPrice)
+      );
+    }
+
+    if (query?.maxPrice) {
+      filteredProfiles = filteredProfiles.filter(
+        profile => profile.hourlyRate <= parseInt(query.maxPrice)
+      );
+    }
+
+    if (query?.rating) {
+      filteredProfiles = filteredProfiles.filter(
+        profile => profile.rating >= parseFloat(query.rating)
+      );
+    }
+
+    // Pagination
+    const page = parseInt(query?.page) || 1;
+    const limit = parseInt(query?.limit) || 12;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+
+    const paginatedProfiles = filteredProfiles.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(filteredProfiles.length / limit);
+
+    return {
+      success: true,
+      data: paginatedProfiles,
+      pagination: {
+        page,
+        limit,
+        total: filteredProfiles.length,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
+  }
+
+  findOne(id: string) {
+    const profile = mockProfiles.find(p => p.id === id);
+    if (!profile) {
+      return { message: `Profile ${id} not found`, data: null };
+    }
+    return { data: profile };
+  }
+
+  findBySlug(slug: string) {
+    const profile = mockProfiles.find(p => p.slug === slug);
+    if (!profile) {
+      return { message: `Profile with slug ${slug} not found`, data: null };
+    }
+    return profile;
+  }
+
+  update(id: string, updateProfileDto: any) {
+    return { message: `Profile ${id} updated`, data: updateProfileDto };
+  }
+
+  remove(id: string) {
+    return { message: `Profile ${id} deleted` };
+  }
+}

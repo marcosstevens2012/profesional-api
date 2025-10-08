@@ -1,0 +1,16 @@
+[build]
+builder = "nixpacks"
+buildCommand = "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @profesional/contracts build && pnpm --filter @profesional/ui build && pnpm --filter @profesional/api build"
+
+[deploy]
+startCommand = "cd apps/api && pnpm start:prod"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "always"
+
+[environment]
+NODE_ENV = "production"
+
+[services]
+redis = "redis"
+postgres = "postgresql"
