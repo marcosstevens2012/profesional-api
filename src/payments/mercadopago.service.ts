@@ -1,7 +1,7 @@
-import { HttpService } from "@nestjs/axios";
-import { Injectable, Logger } from "@nestjs/common";
-import crypto from "crypto";
-import { firstValueFrom } from "rxjs";
+import { HttpService } from '@nestjs/axios';
+import { Injectable, Logger } from '@nestjs/common';
+import crypto from 'crypto';
+import { firstValueFrom } from 'rxjs';
 
 interface MercadoPagoItem {
   id?: string; // ID único del item/servicio
@@ -111,45 +111,55 @@ interface MercadoPagoPreference {
 @Injectable()
 export class MercadoPagoService {
   private readonly logger = new Logger(MercadoPagoService.name);
-  private readonly baseUrl = "https://api.mercadopago.com";
+  private readonly baseUrl = 'https://api.mercadopago.com';
   private readonly accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
   private readonly webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
 
   constructor(private readonly _httpService: HttpService) {}
 
   async createPreference(preference: MercadoPagoPreference) {
-    this.logger.debug("🔥 Creating MP marketplace preference", {
+    // Log completo del objeto que se enviará
+    console.log('📤 Full preference payload to send:', JSON.stringify(preference, null, 2));
+
+    // Validar que si se usa auto_return, back_urls.success debe estar definida
+    // NOTA: MercadoPago no acepta localhost en back_urls cuando se usa auto_return
+    if (preference.auto_return && !preference.back_urls?.success) {
+      const errorMsg = `Cannot use auto_return without back_urls.success. Current back_urls: ${JSON.stringify(preference.back_urls)}`;
+      this.logger.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    this.logger.debug('🔥 Creating MP marketplace preference', {
       external_reference: preference.external_reference,
       marketplace_fee: preference.marketplace_fee,
       split_payments: preference.split_payments?.length || 0,
+      auto_return: preference.auto_return,
+      has_back_urls: !!preference.back_urls,
+      back_urls_success: preference.back_urls?.success,
     });
 
     try {
       const response = await firstValueFrom(
-        this._httpService.post(
-          `${this.baseUrl}/checkout/preferences`,
-          preference,
-          {
-            headers: {
-              Authorization: `Bearer ${this.accessToken}`,
-              "Content-Type": "application/json",
-              "X-Idempotency-Key": `${
-                preference.external_reference
-              }-${Date.now()}`, // Prevenir duplicados
-            },
-          }
-        )
+        this._httpService.post(`${this.baseUrl}/checkout/preferences`, preference, {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            'Content-Type': 'application/json',
+            'X-Idempotency-Key': `${preference.external_reference}-${Date.now()}`, // Prevenir duplicados
+          },
+          timeout: 10000, // 10 segundos timeout
+        }),
       );
 
-      this.logger.log("✅ MP preference created successfully", {
+      this.logger.log('✅ MP preference created successfully', {
         preference_id: response.data.id,
         collector_id: response.data.collector_id,
         external_reference: response.data.external_reference,
+        init_point: response.data.init_point,
       });
 
       return response.data;
     } catch (error: any) {
-      this.logger.error("❌ Error creating MP preference", {
+      this.logger.error('❌ Error creating MP preference', {
         error: error?.response?.data || error?.message || error,
         status: error?.response?.status,
         preference: preference.external_reference,
@@ -167,10 +177,10 @@ export class MercadoPagoService {
           headers: {
             Authorization: `Bearer ${this.accessToken}`,
           },
-        })
+        }),
       );
 
-      this.logger.log("✅ MP payment retrieved", {
+      this.logger.log('✅ MP payment retrieved', {
         payment_id: response.data.id,
         status: response.data.status,
         status_detail: response.data.status_detail,
@@ -193,22 +203,16 @@ export class MercadoPagoService {
 
     try {
       const response = await firstValueFrom(
-        this._httpService.get(
-          `${this.baseUrl}/checkout/preferences/${preferenceId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${this.accessToken}`,
-            },
-          }
-        )
+        this._httpService.get(`${this.baseUrl}/checkout/preferences/${preferenceId}`, {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+        }),
       );
 
       return response.data;
     } catch (error) {
-      this.logger.error(
-        `❌ Error getting MP preference ${preferenceId}`,
-        error
-      );
+      this.logger.error(`❌ Error getting MP preference ${preferenceId}`, error);
       throw error;
     }
   }
@@ -218,17 +222,14 @@ export class MercadoPagoService {
 
     try {
       const response = await firstValueFrom(
-        this._httpService.get(
-          `${this.baseUrl}/merchant_orders/${merchantOrderId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${this.accessToken}`,
-            },
-          }
-        )
+        this._httpService.get(`${this.baseUrl}/merchant_orders/${merchantOrderId}`, {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+        }),
       );
 
-      this.logger.log("✅ MP merchant order retrieved", {
+      this.logger.log('✅ MP merchant order retrieved', {
         order_id: response.data.id,
         preference_id: response.data.preference_id,
         payments: response.data.payments?.length || 0,
@@ -237,34 +238,26 @@ export class MercadoPagoService {
 
       return response.data;
     } catch (error) {
-      this.logger.error(
-        `❌ Error getting MP merchant order ${merchantOrderId}`,
-        error
-      );
+      this.logger.error(`❌ Error getting MP merchant order ${merchantOrderId}`, error);
       throw error;
     }
   }
 
-  async verifyWebhookSignature(
-    payload: string,
-    signature: string
-  ): Promise<boolean> {
+  async verifyWebhookSignature(payload: string, signature: string): Promise<boolean> {
     if (!this.webhookSecret || !signature) {
-      this.logger.warn(
-        "⚠️ Missing webhook secret or signature for verification"
-      );
+      this.logger.warn('⚠️ Missing webhook secret or signature for verification');
       return false;
     }
 
     try {
       const expectedSignature = crypto
-        .createHmac("sha256", this.webhookSecret)
+        .createHmac('sha256', this.webhookSecret)
         .update(payload)
-        .digest("hex");
+        .digest('hex');
 
       const isValid = signature === `sha256=${expectedSignature}`;
 
-      this.logger.debug("🔐 Webhook signature verification", {
+      this.logger.debug('🔐 Webhook signature verification', {
         provided_signature: signature,
         expected_signature: `sha256=${expectedSignature}`,
         is_valid: isValid,
@@ -272,7 +265,7 @@ export class MercadoPagoService {
 
       return isValid;
     } catch (error) {
-      this.logger.error("❌ Error verifying webhook signature", error);
+      this.logger.error('❌ Error verifying webhook signature', error);
       return false;
     }
   }
@@ -281,26 +274,24 @@ export class MercadoPagoService {
    * Procesa una notificación de webhook según su tipo
    */
   async processWebhookNotification(notificationData: any) {
-    this.logger.log("🔔 Processing MP webhook notification", {
+    this.logger.log('🔔 Processing MP webhook notification', {
       id: notificationData.id,
       type: notificationData.type,
       action: notificationData.action,
     });
 
     switch (notificationData.type) {
-      case "payment":
+      case 'payment':
         return await this.getPayment(notificationData.data.id);
 
-      case "merchant_order":
+      case 'merchant_order':
         return await this.getMerchantOrder(notificationData.data.id);
 
-      case "preference":
+      case 'preference':
         return await this.getPreference(notificationData.data.id);
 
       default:
-        this.logger.warn(
-          `⚠️ Unknown webhook notification type: ${notificationData.type}`
-        );
+        this.logger.warn(`⚠️ Unknown webhook notification type: ${notificationData.type}`);
         return null;
     }
   }
@@ -353,10 +344,10 @@ export class MercadoPagoService {
     statementDescriptor?: string;
     expirationHours?: number;
   }) {
-    this.logger.debug("🔥 Creating improved MP preference", {
+    this.logger.debug('🔥 Creating improved MP preference', {
       service_id: data.serviceId,
       amount: data.amount,
-      currency: data.currencyId || "ARS",
+      currency: data.currencyId || 'ARS',
       payer_email: data.payerEmail,
     });
 
@@ -368,9 +359,9 @@ export class MercadoPagoService {
           title: data.title,
           description: data.description,
           picture_url: data.pictureUrl,
-          category_id: data.categoryId || "services",
+          category_id: data.categoryId || 'services',
           quantity: 1,
-          currency_id: data.currencyId || "ARS",
+          currency_id: data.currencyId || 'ARS',
           unit_price: data.amount,
         },
       ],
@@ -400,15 +391,15 @@ export class MercadoPagoService {
       payment_methods: {
         installments: data.maxInstallments || 12,
         default_installments: data.defaultInstallments || 1,
-        excluded_payment_methods: data.excludedPaymentMethods?.map(id => ({
+        excluded_payment_methods: data.excludedPaymentMethods?.map((id) => ({
           id,
         })),
-        excluded_payment_types: data.excludedPaymentTypes?.map(id => ({ id })),
+        excluded_payment_types: data.excludedPaymentTypes?.map((id) => ({ id })),
       },
 
       // URLs
       back_urls: data.backUrls,
-      auto_return: "approved",
+      auto_return: 'approved',
       notification_url: data.notificationUrl,
 
       // Metadata
@@ -421,17 +412,13 @@ export class MercadoPagoService {
       split_payments: data.splitPayments,
 
       // Statement descriptor (aparece en extracto bancario)
-      statement_descriptor: data.statementDescriptor || "PROFESIONAL",
+      statement_descriptor: data.statementDescriptor || 'PROFESIONAL',
 
       // Expiración (opcional)
       expires: data.expirationHours ? true : false,
-      expiration_date_from: data.expirationHours
-        ? new Date().toISOString()
-        : undefined,
+      expiration_date_from: data.expirationHours ? new Date().toISOString() : undefined,
       expiration_date_to: data.expirationHours
-        ? new Date(
-            Date.now() + data.expirationHours * 60 * 60 * 1000
-          ).toISOString()
+        ? new Date(Date.now() + data.expirationHours * 60 * 60 * 1000).toISOString()
         : undefined,
     };
 
