@@ -41,7 +41,7 @@ export const EnvSchema = z.object({
   // Mercado Pago
   MERCADOPAGO_ACCESS_TOKEN: z.string().min(1),
   MERCADOPAGO_PUBLIC_KEY: z.string().min(1),
-  MERCADOPAGO_WEBHOOK_SECRET: z.string().min(1),
+  MERCADOPAGO_WEBHOOK_SECRET: z.string().optional(), // Opcional por ahora
   MERCADOPAGO_BASE_URL: z.string().url().default("https://api.mercadopago.com"),
   MERCADOPAGO_SANDBOX: z.coerce.boolean().default(true),
 

@@ -9,6 +9,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Public } from '../common/decorators/public.decorator';
 import { MercadoPagoService } from './mercadopago.service';
 import { PaymentsService } from './payments.service';
 
@@ -30,6 +31,12 @@ export class PaymentsController {
       console.log('🔑 Auth Header received:', authHeader?.substring(0, 20) + '...');
       console.log('📦 Body received:', JSON.stringify(body, null, 2));
 
+      // Validate MercadoPago configuration
+      if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
+        this.logger.error('❌ MERCADOPAGO_ACCESS_TOKEN not configured');
+        throw new BadRequestException('MercadoPago not configured. Please contact support.');
+      }
+
       // Extract data from the request
       const { title, amount, professionalSlug, external_reference } = body;
       console.log('👨‍⚕️ Professional slug:', professionalSlug);
@@ -44,6 +51,10 @@ export class PaymentsController {
 
       // Define base URL (use environment variable in production)
       const baseUrl = process.env.FRONTEND_BASE_URL || 'http://localhost:3000';
+
+      if (!process.env.FRONTEND_BASE_URL) {
+        this.logger.warn('⚠️  FRONTEND_BASE_URL not set, using default: http://localhost:3000');
+      }
 
       console.log('🌐 Frontend base URL:', baseUrl);
 
@@ -82,7 +93,10 @@ export class PaymentsController {
         mpPreferenceData.auto_return = 'approved';
         console.log('✅ auto_return enabled (production URLs)');
       } else {
+        // En localhost, necesitamos que el usuario haga clic en el botón de volver
+        // Agregamos esto para mejorar la UX
         console.log('⚠️  auto_return disabled (localhost URLs - MercadoPago restriction)');
+        console.log('💡 User will need to click "Volver al sitio" button after payment');
       }
 
       console.log('🔧 Full MP Preference Data:', JSON.stringify(mpPreferenceData, null, 2));
@@ -112,10 +126,22 @@ export class PaymentsController {
         },
       };
     } catch (error: any) {
-      console.error('❌ Error creating MercadoPago preference:', error);
-      throw new BadRequestException(
-        `Error creating preference: ${error?.message || 'Unknown error'}`,
-      );
+      // Log detailed error information
+      this.logger.error('❌ Error creating MercadoPago preference:', {
+        error: error?.message,
+        stack: error?.stack,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        professionalSlug: body?.professionalSlug,
+      });
+
+      // Provide user-friendly error messages
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        'Unknown error occurred while creating payment preference';
+
+      throw new BadRequestException(`Error creating preference: ${errorMessage}`);
     }
   }
 
@@ -139,6 +165,30 @@ export class PaymentsController {
         error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
+  }
+
+  @Public()
+  @Get('config-check')
+  async checkMercadoPagoConfig() {
+    const baseUrl = process.env.FRONTEND_BASE_URL || 'http://localhost:3000';
+    const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+    const isSandbox = this.isSandboxEnvironment();
+    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN || '';
+
+    return {
+      success: true,
+      config: {
+        frontend_base_url: baseUrl,
+        is_localhost: isLocalhost,
+        auto_return_enabled: !isLocalhost,
+        is_sandbox: isSandbox,
+        has_access_token: !!accessToken,
+        token_type: accessToken.startsWith('TEST-') ? 'TEST (Sandbox)' : 'PRODUCTION',
+        recommended_action: isLocalhost
+          ? '⚠️  En localhost - Usuario debe hacer clic en "Volver al sitio" después del pago'
+          : '✅ En producción - Redirección automática habilitada',
+      },
+    };
   }
 
   @Post('test-cards')
