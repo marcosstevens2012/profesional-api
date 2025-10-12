@@ -1,21 +1,14 @@
-import {
-  IsEmail,
-  IsEnum,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Min,
-} from "class-validator";
+import { IsEmail, IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export enum CurrencyId {
-  ARS = "ARS", // Argentina
+  ARS = 'ARS', // Argentina
 }
 
 export enum ServiceType {
-  ONLINE_CONSULTATION = "online_consultation",
-  IN_PERSON_CONSULTATION = "in_person_consultation",
-  FOLLOW_UP = "follow_up",
-  EMERGENCY = "emergency",
+  ONLINE_CONSULTATION = 'online_consultation',
+  IN_PERSON_CONSULTATION = 'in_person_consultation',
+  FOLLOW_UP = 'follow_up',
+  EMERGENCY = 'emergency',
 }
 
 export class CreateImprovedPreferenceDto {

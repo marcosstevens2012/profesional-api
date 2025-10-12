@@ -8,7 +8,16 @@ import {
   Param,
   Post,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiHeader,
+  ApiOperation,
+  ApiParam,
+  ApiProduces,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { CreatePreferenceDto } from './dto/create-preference.dto';
 import { TestCardDto, WebhookNotificationDto } from './dto/webhook.dto';
@@ -28,6 +37,108 @@ export class PaymentsController {
   // ===== RUTAS ESPECÍFICAS PRIMERO =====
 
   @Post('mp/preference')
+  @ApiOperation({
+    summary: 'Crear preferencia de pago en MercadoPago',
+    description: `Crea una preferencia de pago en MercadoPago para iniciar el checkout.
+    
+**Características:**
+- ✅ Soporte para modo Sandbox (TEST) y Producción
+- ✅ Configuración automática según entorno
+- ✅ Información del pagador mejora tasa de aprobación
+- ✅ URLs de retorno configurables
+- ✅ Soporte para cuotas (hasta 12)
+
+**Notas importantes:**
+- En localhost, \`auto_return\` está deshabilitado (restricción de MercadoPago)
+- Usar \`sandbox_init_point\` en modo TEST
+- El \`statement_descriptor\` aparece en el extracto bancario`,
+  })
+  @ApiConsumes('application/json')
+  @ApiProduces('application/json')
+  @ApiHeader({
+    name: 'authorization',
+    description: 'Token de autorización (opcional para esta versión)',
+    required: false,
+  })
+  @ApiBody({
+    type: CreatePreferenceDto,
+    description: 'Datos para crear la preferencia de pago',
+    examples: {
+      basic: {
+        summary: 'Ejemplo básico',
+        value: {
+          title: 'Consulta Psicológica',
+          amount: 25000,
+          professionalSlug: 'dr-juan-perez',
+        },
+      },
+      complete: {
+        summary: 'Ejemplo completo con datos del pagador',
+        value: {
+          title: 'Consulta Psicológica',
+          amount: 25000,
+          professionalSlug: 'dr-juan-perez',
+          external_reference: 'consultation_123',
+          payerEmail: 'cliente@example.com',
+          payerName: 'María',
+          payerSurname: 'González',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Preferencia creada exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        preference_id: { type: 'string', example: '1234567890-abc123-def456' },
+        init_point: {
+          type: 'string',
+          example: 'https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=...',
+        },
+        sandbox_init_point: {
+          type: 'string',
+          example: 'https://sandbox.mercadopago.com.ar/checkout/v1/redirect?pref_id=...',
+        },
+        external_reference: { type: 'string', example: 'consultation_dr-juan-perez_1234567890' },
+        auto_return_enabled: { type: 'boolean', example: false },
+        back_urls: {
+          type: 'object',
+          properties: {
+            success: { type: 'string' },
+            failure: { type: 'string' },
+            pending: { type: 'string' },
+          },
+        },
+        metadata: {
+          type: 'object',
+          properties: {
+            amount: { type: 'number', example: 25000 },
+            professional_slug: { type: 'string', example: 'dr-juan-perez' },
+            is_sandbox: { type: 'boolean', example: true },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Error en la validación de datos o configuración',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: { type: 'string', example: 'Error creating preference: Invalid amount' },
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Error interno del servidor o de MercadoPago',
+  })
   async createPreference(
     @Body() body: CreatePreferenceDto,
     @Headers('authorization') authHeader: string,
@@ -193,6 +304,68 @@ export class PaymentsController {
   }
 
   @Post('webhook')
+  @Public()
+  @ApiOperation({
+    summary: 'Webhook de MercadoPago',
+    description: `Recibe notificaciones de MercadoPago sobre cambios en el estado de los pagos.
+
+**Tipos de notificaciones:**
+- \`payment\`: Notificación de cambio de estado de pago
+- \`merchant_order\`: Notificación de orden de merchant
+- \`preference\`: Notificación de preferencia
+
+**Estados de pago:**
+- \`approved\`: Pago aprobado
+- \`pending\`: Pago pendiente
+- \`rejected\`: Pago rechazado
+- \`cancelled\`: Pago cancelado
+
+**Nota:** Este endpoint es llamado automáticamente por MercadoPago.`,
+  })
+  @ApiBody({
+    description: 'Datos del webhook de MercadoPago',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', example: '12345' },
+        type: {
+          type: 'string',
+          example: 'payment',
+          enum: ['payment', 'merchant_order', 'preference'],
+        },
+        action: { type: 'string', example: 'payment.updated' },
+        data: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', example: '67890' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Webhook procesado correctamente',
+    schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', example: 'ok' },
+        processed: { type: 'boolean', example: true },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Error al procesar webhook',
+    schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', example: 'error' },
+        processed: { type: 'boolean', example: false },
+        error: { type: 'string', example: 'Payment not found' },
+      },
+    },
+  })
   async handleWebhook(@Body() webhookData: WebhookNotificationDto) {
     this.logger.log('📨 Received MP webhook', { type: webhookData.type });
 
@@ -211,6 +384,51 @@ export class PaymentsController {
 
   @Public()
   @Get('config-check')
+  @ApiOperation({
+    summary: 'Verificar configuración de MercadoPago',
+    description: `Verifica la configuración actual de MercadoPago y el entorno.
+
+**Información retornada:**
+- URL del frontend configurada
+- Si está en localhost o producción
+- Si auto_return está habilitado
+- Modo sandbox o producción
+- Si el token de acceso está configurado
+- Recomendaciones según el entorno
+
+**Uso:** Útil para debugging y verificar la configuración antes de crear pagos.`,
+  })
+  @ApiProduces('application/json')
+  @ApiResponse({
+    status: 200,
+    description: 'Configuración de MercadoPago',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        config: {
+          type: 'object',
+          properties: {
+            frontend_base_url: { type: 'string', example: 'http://localhost:3000' },
+            is_localhost: { type: 'boolean', example: true },
+            auto_return_enabled: { type: 'boolean', example: false },
+            is_sandbox: { type: 'boolean', example: true },
+            has_access_token: { type: 'boolean', example: true },
+            token_type: {
+              type: 'string',
+              example: 'TEST (Sandbox)',
+              enum: ['TEST (Sandbox)', 'PRODUCTION'],
+            },
+            recommended_action: {
+              type: 'string',
+              example:
+                '⚠️  En localhost - Usuario debe hacer clic en "Volver al sitio" después del pago',
+            },
+          },
+        },
+      },
+    },
+  })
   async checkMercadoPagoConfig() {
     const baseUrl = process.env.FRONTEND_BASE_URL || 'http://localhost:3000';
     const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
@@ -234,6 +452,55 @@ export class PaymentsController {
   }
 
   @Post('test-cards')
+  @ApiOperation({
+    summary: 'Información de tarjetas de prueba',
+    description: `Retorna información sobre las tarjetas de prueba disponibles en MercadoPago.
+
+**Tarjetas disponibles:**
+
+**✅ APROBADAS:**
+- Mastercard: \`5031 7557 3453 0604\` - CVV: 123 - Nombre: APRO
+- Visa: \`4509 9535 6623 3704\` - CVV: 123 - Nombre: APRO
+
+**❌ RECHAZADAS:**
+- Visa: \`4774 4612 9001 0078\` - CVV: 123
+
+**⏸️ PENDIENTES:**
+- Mastercard: \`5031 4332 1540 6351\` - CVV: 123
+
+**Nota:** Solo funciona en modo Sandbox (TEST).`,
+  })
+  @ApiBody({ type: TestCardDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Información de tarjetas de prueba',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'Test cards information' },
+        data: {
+          type: 'object',
+          properties: {
+            cards: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  number: { type: 'string', example: '5031755734530604' },
+                  cvv: { type: 'string', example: '123' },
+                  exp: { type: 'string', example: '11/30' },
+                  status: { type: 'string', example: 'approved' },
+                },
+              },
+            },
+            selectedCard: { type: 'string', example: '5031755734530604' },
+            amount: { type: 'number', example: 1000 },
+          },
+        },
+      },
+    },
+  })
   async testWithCards(@Body() cardDto: TestCardDto) {
     this.logger.log('🧪 Testing payment with test cards');
 
@@ -272,6 +539,76 @@ export class PaymentsController {
   // ===== RUTAS PARAMÉTRICAS AL FINAL =====
 
   @Get('payment/:id')
+  @ApiOperation({
+    summary: 'Obtener información de un pago',
+    description: `Obtiene los detalles completos de un pago por su ID.
+
+**Información incluida:**
+- Estado del pago
+- Monto y comisiones
+- Datos del pagador
+- Información del profesional y cliente
+- Historial de eventos del pago
+- Datos de MercadoPago
+
+**Estados posibles:**
+- \`PENDING\`: Pendiente de pago
+- \`COMPLETED\`: Pago completado exitosamente
+- \`FAILED\`: Pago fallido o rechazado
+- \`CANCELLED\`: Pago cancelado`,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del pago (CUID)',
+    example: 'clx1a2b3c4d5e6f7g8h9i0j1k',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Información del pago encontrada',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        data: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', example: 'clx1a2b3c4d5e6f7g8h9i0j1k' },
+            provider: { type: 'string', example: 'MERCADOPAGO' },
+            preferenceId: { type: 'string', example: '1234567890-abc123-def456' },
+            paymentId: { type: 'string', example: '67890' },
+            status: { type: 'string', example: 'COMPLETED' },
+            amount: { type: 'number', example: 25000 },
+            fee: { type: 'number', example: 0 },
+            gatewayFees: { type: 'number', example: 1500 },
+            platformFee: { type: 'number', example: 5000 },
+            netAmount: { type: 'number', example: 18500 },
+            currency: { type: 'string', example: 'ARS' },
+            payerEmail: { type: 'string', example: 'cliente@example.com' },
+            paidAt: { type: 'string', format: 'date-time' },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
+            booking: { type: 'object', description: 'Información de la reserva asociada' },
+            events: {
+              type: 'array',
+              description: 'Historial de eventos del pago',
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Pago no encontrado',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: false },
+        message: { type: 'string', example: 'Payment not found' },
+        error: { type: 'string', example: 'Payment with id clx1a2b3c4d5e6f7g8h9i0j1k not found' },
+      },
+    },
+  })
   async getPayment(@Param('id') id: string) {
     this.logger.log(`Getting payment ${id}`);
 
