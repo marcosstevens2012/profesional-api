@@ -2,6 +2,11 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
 import crypto from 'crypto';
 import { firstValueFrom } from 'rxjs';
+import {
+  MPMerchantOrderResponse,
+  MPPaymentResponse,
+  MPWebhookNotification,
+} from './interfaces/mp-responses.interface';
 
 interface MercadoPagoItem {
   id?: string; // ID único del item/servicio
@@ -104,7 +109,7 @@ interface MercadoPagoPreference {
   split_payments?: MercadoPagoMarketplaceSplit[];
   differential_pricing?: MercadoPagoDifferentialPricing;
   tracks?: MercadoPagoTrack[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, string | number | boolean>;
   statement_descriptor?: string; // Descriptor en extracto bancario (max 11 caracteres)
 }
 
@@ -129,6 +134,29 @@ export class MercadoPagoService {
       throw new Error(errorMsg);
     }
 
+    // Asegurar configuración mínima para sandbox
+    const isSandbox = this.accessToken?.startsWith('TEST-');
+
+    if (isSandbox) {
+      this.logger.debug('🧪 Using SANDBOX mode - ensuring test-friendly configuration');
+
+      // En sandbox, asegurar que haya payer info (mejora tasa de aprobación)
+      if (!preference.payer?.email) {
+        this.logger.warn('⚠️ No payer email provided - adding default for sandbox');
+        preference.payer = {
+          ...preference.payer,
+          email: 'test_user@test.com',
+          name: preference.payer?.name || 'Test',
+          surname: preference.payer?.surname || 'User',
+        };
+      }
+
+      // Asegurar statement_descriptor
+      if (!preference.statement_descriptor) {
+        preference.statement_descriptor = 'PROFESIONAL';
+      }
+    }
+
     this.logger.debug('🔥 Creating MP marketplace preference', {
       external_reference: preference.external_reference,
       marketplace_fee: preference.marketplace_fee,
@@ -136,6 +164,8 @@ export class MercadoPagoService {
       auto_return: preference.auto_return,
       has_back_urls: !!preference.back_urls,
       back_urls_success: preference.back_urls?.success,
+      is_sandbox: isSandbox,
+      has_payer_email: !!preference.payer?.email,
     });
 
     try {
@@ -158,17 +188,16 @@ export class MercadoPagoService {
       });
 
       return response.data;
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.logger.error('❌ Error creating MP preference', {
-        error: error?.response?.data || error?.message || error,
-        status: error?.response?.status,
+        error: error instanceof Error ? error.message : 'Unknown error',
         preference: preference.external_reference,
       });
       throw error;
     }
   }
 
-  async getPayment(paymentId: string) {
+  async getPayment(paymentId: string): Promise<MPPaymentResponse> {
     this.logger.debug(`🔍 Getting MP payment ${paymentId}`);
 
     try {
@@ -189,10 +218,9 @@ export class MercadoPagoService {
       });
 
       return response.data;
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.logger.error(`❌ Error getting MP payment ${paymentId}`, {
-        error: error?.response?.data || error?.message || error,
-        status: error?.response?.status,
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
       throw error;
     }
@@ -217,7 +245,7 @@ export class MercadoPagoService {
     }
   }
 
-  async getMerchantOrder(merchantOrderId: string) {
+  async getMerchantOrder(merchantOrderId: string): Promise<MPMerchantOrderResponse> {
     this.logger.debug(`🔍 Getting MP merchant order ${merchantOrderId}`);
 
     try {
@@ -273,7 +301,9 @@ export class MercadoPagoService {
   /**
    * Procesa una notificación de webhook según su tipo
    */
-  async processWebhookNotification(notificationData: any) {
+  async processWebhookNotification(
+    notificationData: MPWebhookNotification,
+  ): Promise<MPPaymentResponse | MPMerchantOrderResponse | unknown | null> {
     this.logger.log('🔔 Processing MP webhook notification', {
       id: notificationData.id,
       type: notificationData.type,
@@ -333,7 +363,7 @@ export class MercadoPagoService {
 
     // Metadata & tracking
     externalReference: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, string | number | boolean>;
 
     // Marketplace (opcional)
     marketplace?: string;

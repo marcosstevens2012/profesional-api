@@ -10,6 +10,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
+import { CreatePreferenceDto } from './dto/create-preference.dto';
+import { TestCardDto, WebhookNotificationDto } from './dto/webhook.dto';
 import { MercadoPagoService } from './mercadopago.service';
 import { PaymentsService } from './payments.service';
 
@@ -26,7 +28,10 @@ export class PaymentsController {
   // ===== RUTAS ESPECÍFICAS PRIMERO =====
 
   @Post('mp/preference')
-  async createPreference(@Body() body: any, @Headers('authorization') authHeader: string) {
+  async createPreference(
+    @Body() body: CreatePreferenceDto,
+    @Headers('authorization') authHeader: string,
+  ) {
     try {
       console.log('🔑 Auth Header received:', authHeader?.substring(0, 20) + '...');
       console.log('📦 Body received:', JSON.stringify(body, null, 2));
@@ -68,7 +73,32 @@ export class PaymentsController {
       console.log('🔧 Constructed Back URLs:', JSON.stringify(backUrls, null, 2));
 
       // Transform data to MercadoPago format
-      const mpPreferenceData: any = {
+      const mpPreferenceData: {
+        items: Array<{
+          title: string;
+          quantity: number;
+          unit_price: number;
+          category_id: string;
+          description: string;
+        }>;
+        external_reference: string;
+        back_urls: {
+          success: string;
+          failure: string;
+          pending: string;
+        };
+        payment_methods: {
+          installments: number;
+          default_installments: number;
+        };
+        payer: {
+          email: string;
+          name: string;
+          surname: string;
+        };
+        statement_descriptor: string;
+        auto_return?: string;
+      } = {
         items: [
           {
             title: title || 'Consulta con Profesional',
@@ -80,9 +110,23 @@ export class PaymentsController {
         ],
         external_reference: external_reference || `consultation_${professionalSlug}_${Date.now()}`,
         back_urls: backUrls,
+
+        // Configuración de métodos de pago (importante para sandbox)
         payment_methods: {
           installments: 12,
+          default_installments: 1,
+          // NO excluir métodos de pago en sandbox para que funcionen las tarjetas de prueba
         },
+
+        // Información del pagador (recomendado para mejorar tasa de aprobación)
+        payer: {
+          email: body.payerEmail || 'test_user@test.com',
+          name: body.payerName || 'Test',
+          surname: body.payerSurname || 'User',
+        },
+
+        // Statement descriptor (aparece en extracto bancario - máx 11 caracteres)
+        statement_descriptor: 'PROFESIONAL',
       };
 
       // IMPORTANTE: MercadoPago NO acepta localhost en back_urls cuando se usa auto_return
@@ -125,22 +169,20 @@ export class PaymentsController {
           is_sandbox: isSandbox,
         },
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Log detailed error information
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Unknown error occurred while creating payment preference';
+
       this.logger.error('❌ Error creating MercadoPago preference:', {
-        error: error?.message,
-        stack: error?.stack,
-        response: error?.response?.data,
-        status: error?.response?.status,
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
         professionalSlug: body?.professionalSlug,
       });
 
       // Provide user-friendly error messages
-      const errorMessage =
-        error?.response?.data?.message ||
-        error?.message ||
-        'Unknown error occurred while creating payment preference';
-
       throw new BadRequestException(`Error creating preference: ${errorMessage}`);
     }
   }
@@ -151,11 +193,11 @@ export class PaymentsController {
   }
 
   @Post('webhook')
-  async handleWebhook(@Body() webhookData: any) {
+  async handleWebhook(@Body() webhookData: WebhookNotificationDto) {
     this.logger.log('📨 Received MP webhook', { type: webhookData.type });
 
     try {
-      await this._paymentsService.handleWebhook(webhookData, '');
+      await this._paymentsService.handleWebhook(webhookData);
       return { status: 'ok', processed: true };
     } catch (error) {
       this.logger.error('❌ Error processing webhook', error);
@@ -192,7 +234,7 @@ export class PaymentsController {
   }
 
   @Post('test-cards')
-  async testWithCards(@Body() cardDto: any) {
+  async testWithCards(@Body() cardDto: TestCardDto) {
     this.logger.log('🧪 Testing payment with test cards');
 
     const testCards = [

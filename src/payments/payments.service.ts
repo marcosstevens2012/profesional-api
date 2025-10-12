@@ -1,13 +1,18 @@
-import { BadRequestException, Injectable, Logger } from "@nestjs/common";
-import { PaymentStatus } from "@prisma/client";
-import { Decimal } from "@prisma/client/runtime/library";
 import {
   MarketplacePreferenceRequest,
   MarketplacePreferenceResponse,
-} from "@marcosstevens2012/contracts";
-import { PrismaService } from "../database/prisma.service";
-import { CommissionService } from "./commission.service";
-import { MercadoPagoService } from "./mercadopago.service";
+} from '@marcosstevens2012/contracts';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { PaymentStatus } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
+import { PrismaService } from '../database/prisma.service';
+import { CommissionService } from './commission.service';
+import {
+  MPMerchantOrderResponse,
+  MPPaymentResponse,
+  MPWebhookNotification,
+} from './interfaces/mp-responses.interface';
+import { MercadoPagoService } from './mercadopago.service';
 
 @Injectable()
 export class PaymentsService {
@@ -16,18 +21,14 @@ export class PaymentsService {
   constructor(
     private readonly _prisma: PrismaService,
     private readonly _mercadoPagoService: MercadoPagoService,
-    private readonly _commissionService: CommissionService
+    private readonly _commissionService: CommissionService,
   ) {}
 
   async createPayment(bookingId: string, amount: number, description: string) {
-    this.logger.debug(
-      `💰 Creating marketplace payment for booking ${bookingId}`
-    );
+    this.logger.debug(`💰 Creating marketplace payment for booking ${bookingId}`);
 
     // Calculate commission
-    const platformFee = await this._commissionService.calculatePlatformFee(
-      new Decimal(amount)
-    );
+    const platformFee = await this._commissionService.calculatePlatformFee(new Decimal(amount));
     const professionalAmount = new Decimal(amount).sub(platformFee);
 
     // Create payment record
@@ -35,19 +36,19 @@ export class PaymentsService {
       data: {
         amount,
         netAmount: professionalAmount, // Amount after platform fee
-        currency: "ARS",
+        currency: 'ARS',
         status: PaymentStatus.PENDING,
         metadata: {
           bookingId,
           description,
           platformFee,
           professionalAmount,
-          type: "marketplace_split",
+          type: 'marketplace_split',
         },
       },
     });
 
-    this.logger.log("✅ Payment record created", {
+    this.logger.log('✅ Payment record created', {
       payment_id: payment.id,
       total_amount: amount,
       platform_fee: platformFee,
@@ -79,7 +80,7 @@ export class PaymentsService {
           },
         },
         events: {
-          orderBy: { createdAt: "desc" },
+          orderBy: { createdAt: 'desc' },
           take: 10,
         },
       },
@@ -92,8 +93,8 @@ export class PaymentsService {
     return payment;
   }
 
-  async handleWebhook(data: any, _signature: string) {
-    this.logger.log("🔔 Processing MP marketplace webhook", {
+  async handleWebhook(data: MPWebhookNotification) {
+    this.logger.log('🔔 Processing MP marketplace webhook', {
       id: data.id,
       type: data.type,
       action: data.action,
@@ -101,11 +102,10 @@ export class PaymentsService {
 
     try {
       // Procesar según tipo de notificación
-      const processedData =
-        await this._mercadoPagoService.processWebhookNotification(data);
+      const processedData = await this._mercadoPagoService.processWebhookNotification(data);
 
       if (!processedData) {
-        this.logger.warn("⚠️ No data to process from webhook");
+        this.logger.warn('⚠️ No data to process from webhook');
         return { received: true };
       }
 
@@ -115,33 +115,48 @@ export class PaymentsService {
           paymentId: `temp-${Date.now()}`, // Temporal hasta encontrar el payment real
           externalId: data.id,
           type: data.type,
-          rawPayload: data,
+          rawPayload: JSON.parse(JSON.stringify(data)),
           idempotencyKey: `webhook-${data.id}-${Date.now()}`,
-          data: processedData,
+          data: JSON.parse(JSON.stringify(processedData)),
         },
       });
 
       // Procesar según tipo
-      if (data.type === "payment") {
-        await this.processPaymentNotification(processedData);
-      } else if (data.type === "merchant_order") {
-        await this.processMerchantOrderNotification(processedData);
+      if (
+        data.type === 'payment' &&
+        processedData &&
+        typeof processedData === 'object' &&
+        'status' in processedData
+      ) {
+        await this.processPaymentNotification(processedData as MPPaymentResponse);
+      } else if (
+        data.type === 'merchant_order' &&
+        processedData &&
+        typeof processedData === 'object' &&
+        'order_status' in processedData
+      ) {
+        await this.processMerchantOrderNotification(processedData as MPMerchantOrderResponse);
       }
 
-      this.logger.log("✅ Webhook processed successfully");
+      this.logger.log('✅ Webhook processed successfully');
       return { received: true, processed: true };
     } catch (error) {
-      this.logger.error("❌ Error processing webhook", error);
+      this.logger.error('❌ Error processing webhook', error);
 
       // Guardar error para debugging
       await this._prisma.paymentEvent.create({
         data: {
           paymentId: `error-${Date.now()}`,
           externalId: data.id,
-          type: data.type || "webhook_error",
-          rawPayload: data,
+          type: data.type || 'webhook_error',
+          rawPayload: JSON.parse(JSON.stringify(data)),
           idempotencyKey: `error-${data.id || Date.now()}-${Date.now()}`,
-          data: { error: (error as Error).message, originalData: data },
+          data: JSON.parse(
+            JSON.stringify({
+              error: (error as Error).message,
+              originalData: data,
+            }),
+          ),
         },
       });
 
@@ -149,8 +164,8 @@ export class PaymentsService {
     }
   }
 
-  private async processPaymentNotification(mpPayment: any) {
-    this.logger.log("💰 Processing payment notification", {
+  private async processPaymentNotification(mpPayment: MPPaymentResponse) {
+    this.logger.log('💰 Processing payment notification', {
       payment_id: mpPayment.id,
       status: mpPayment.status,
       external_reference: mpPayment.external_reference,
@@ -166,9 +181,7 @@ export class PaymentsService {
     });
 
     if (!booking || !booking.payment) {
-      this.logger.warn(
-        `❌ Booking or payment not found for external reference: ${bookingId}`
-      );
+      this.logger.warn(`❌ Booking or payment not found for external reference: ${bookingId}`);
       return;
     }
 
@@ -177,14 +190,14 @@ export class PaymentsService {
     // Mapear status de MP a nuestros status
     let newStatus: PaymentStatus;
     switch (mpPayment.status) {
-      case "approved":
+      case 'approved':
         newStatus = PaymentStatus.COMPLETED;
         break;
-      case "pending":
+      case 'pending':
         newStatus = PaymentStatus.PENDING;
         break;
-      case "rejected":
-      case "cancelled":
+      case 'rejected':
+      case 'cancelled':
         newStatus = PaymentStatus.FAILED;
         break;
       default:
@@ -209,11 +222,11 @@ export class PaymentsService {
       await this._prisma.booking.update({
         where: { id: bookingId },
         data: {
-          status: "WAITING_FOR_PROFESSIONAL",
+          status: 'WAITING_FOR_PROFESSIONAL',
         },
       });
 
-      this.logger.log("✅ Booking updated to WAITING_FOR_PROFESSIONAL", {
+      this.logger.log('✅ Booking updated to WAITING_FOR_PROFESSIONAL', {
         booking_id: bookingId,
         professional_id: booking.professionalId,
       });
@@ -222,8 +235,8 @@ export class PaymentsService {
       await this._prisma.notification.create({
         data: {
           userId: booking.professional.userId, // Notificar al usuario del profesional
-          type: "BOOKING_REQUEST",
-          title: "Nueva solicitud de consulta",
+          type: 'BOOKING_REQUEST',
+          title: 'Nueva solicitud de consulta',
           message: `Tienes una nueva solicitud de consulta pagada. El cliente ya realizó el pago de $${payment.amount}.`,
           payload: {
             bookingId: booking.id,
@@ -234,7 +247,7 @@ export class PaymentsService {
         },
       });
 
-      this.logger.log("✅ Notification created for professional", {
+      this.logger.log('✅ Notification created for professional', {
         professional_user_id: booking.professional.userId,
         booking_id: bookingId,
       });
@@ -245,7 +258,7 @@ export class PaymentsService {
       await this.processApprovedPayment(payment, mpPayment);
     }
 
-    this.logger.log("✅ Payment notification processed", {
+    this.logger.log('✅ Payment notification processed', {
       payment_id: payment.id,
       booking_id: bookingId,
       new_status: newStatus,
@@ -253,8 +266,8 @@ export class PaymentsService {
     });
   }
 
-  private async processMerchantOrderNotification(merchantOrder: any) {
-    this.logger.log("📋 Processing merchant order notification", {
+  private async processMerchantOrderNotification(merchantOrder: MPMerchantOrderResponse) {
+    this.logger.log('📋 Processing merchant order notification', {
       order_id: merchantOrder.id,
       preference_id: merchantOrder.preference_id,
       payments_count: merchantOrder.payments?.length || 0,
@@ -264,8 +277,11 @@ export class PaymentsService {
     // Por ejemplo, para manejar pagos parciales o múltiples pagos
   }
 
-  private async processApprovedPayment(payment: any, mpPayment: any) {
-    this.logger.log("🎉 Processing approved marketplace payment", {
+  private async processApprovedPayment(
+    payment: { id: string; metadata: unknown },
+    mpPayment: MPPaymentResponse,
+  ) {
+    this.logger.log('🎉 Processing approved marketplace payment', {
       payment_id: payment.id,
       amount: mpPayment.transaction_amount,
       fee_details: mpPayment.fee_details,
@@ -275,8 +291,8 @@ export class PaymentsService {
       // Calcular y guardar fees reales de MP
       const mpFees =
         mpPayment.fee_details?.reduce(
-          (total: number, fee: any) => total + fee.amount,
-          0
+          (total: number, fee: { amount: number }) => total + fee.amount,
+          0,
         ) || 0;
 
       // Actualizar con fees reales
@@ -284,11 +300,11 @@ export class PaymentsService {
         where: { id: payment.id },
         data: {
           gatewayFees: new Decimal(mpFees),
-          netAmount: new Decimal(mpPayment.transaction_amount).sub(
-            new Decimal(mpFees)
-          ),
+          netAmount: new Decimal(mpPayment.transaction_amount).sub(new Decimal(mpFees)),
           metadata: {
-            ...payment.metadata,
+            ...(payment.metadata && typeof payment.metadata === 'object'
+              ? (payment.metadata as Record<string, unknown>)
+              : {}),
             mp_fees: mpFees,
             mp_transaction_amount: mpPayment.transaction_amount,
             processed_at: new Date().toISOString(),
@@ -296,13 +312,13 @@ export class PaymentsService {
         },
       });
 
-      this.logger.log("✅ Approved payment processed with real fees", {
+      this.logger.log('✅ Approved payment processed with real fees', {
         payment_id: payment.id,
         mp_fees: mpFees,
         net_amount: mpPayment.transaction_amount - mpFees,
       });
     } catch (error) {
-      this.logger.error("❌ Error processing approved payment", error);
+      this.logger.error('❌ Error processing approved payment', error);
       throw error;
     }
   }
@@ -314,7 +330,7 @@ export class PaymentsService {
       where: { id: paymentId },
       include: {
         events: {
-          orderBy: { createdAt: "desc" },
+          orderBy: { createdAt: 'desc' },
           take: 10, // Últimos 10 eventos
         },
         booking: {
@@ -341,9 +357,9 @@ export class PaymentsService {
    * STEP 2: Crear preferencia de marketplace con split payments
    */
   async createMarketplacePreference(
-    request: MarketplacePreferenceRequest
+    request: MarketplacePreferenceRequest,
   ): Promise<MarketplacePreferenceResponse> {
-    this.logger.log("🏪 Creating marketplace preference with split payments", {
+    this.logger.log('🏪 Creating marketplace preference with split payments', {
       booking_id: request.bookingId,
       total_amount: request.amount,
       professional_id: request.professionalId,
@@ -356,7 +372,7 @@ export class PaymentsService {
     const platformFee = totalAmount.mul(platformCommissionRate).div(100);
     const professionalAmount = totalAmount.sub(platformFee);
 
-    this.logger.debug("💰 Split calculation", {
+    this.logger.debug('💰 Split calculation', {
       total_amount: totalAmount.toNumber(),
       platform_fee: platformFee.toNumber(),
       professional_amount: professionalAmount.toNumber(),
@@ -369,11 +385,11 @@ export class PaymentsService {
         amount: totalAmount.toNumber(),
         platformFee: platformFee.toNumber(),
         netAmount: professionalAmount.toNumber(), // Required field
-        currency: "ARS",
+        currency: 'ARS',
         status: PaymentStatus.PENDING,
         payerEmail: request.payerEmail,
         metadata: {
-          type: "marketplace_split",
+          type: 'marketplace_split',
           bookingId: request.bookingId, // Store bookingId in metadata
           customerId: request.customerId,
           professionalId: request.professionalId,
@@ -394,7 +410,7 @@ export class PaymentsService {
         },
       ],
       external_reference: payment.id, // Usar ID del payment como referencia
-      marketplace: "PROFESIONAL-MARKETPLACE",
+      marketplace: 'PROFESIONAL-MARKETPLACE',
       marketplace_fee: platformFee.toNumber(),
       split_payments: [
         {
@@ -412,22 +428,36 @@ export class PaymentsService {
             pending: request.backUrls.pending,
           }
         : undefined,
-      auto_return: request.autoReturn || "approved",
+      auto_return: request.autoReturn || 'approved',
       notification_url: `${process.env.APP_URL}/api/payments/webhook`,
+
+      // Configuración de métodos de pago
       payment_methods: {
         installments: request.maxInstallments || 12,
+        default_installments: 1,
+        // NO excluir métodos en sandbox para que funcionen las tarjetas de prueba
       },
+
+      // Información del pagador (mejora tasa de aprobación en sandbox)
       payer: request.payerEmail
         ? {
             email: request.payerEmail,
+            name: 'User',
+            surname: 'Test',
           }
-        : undefined,
+        : {
+            email: 'test_user@test.com',
+            name: 'Test',
+            surname: 'User',
+          },
+
+      // Statement descriptor (aparece en extracto bancario)
+      statement_descriptor: 'PROFESIONAL',
     };
 
     try {
       // Crear preferencia en MP
-      const mpResponse =
-        await this._mercadoPagoService.createPreference(mpPreference);
+      const mpResponse = await this._mercadoPagoService.createPreference(mpPreference);
 
       // Actualizar payment con preferenceId
       await this._prisma.payment.update({
@@ -451,7 +481,7 @@ export class PaymentsService {
         preference_data: mpResponse,
       };
 
-      this.logger.log("✅ Marketplace preference created successfully", {
+      this.logger.log('✅ Marketplace preference created successfully', {
         preference_id: response.id,
         payment_id: payment.id,
         init_point: response.init_point,
@@ -460,7 +490,7 @@ export class PaymentsService {
 
       return response;
     } catch (error) {
-      this.logger.error("❌ Error creating marketplace preference", error);
+      this.logger.error('❌ Error creating marketplace preference', error);
 
       // Marcar payment como fallido
       await this._prisma.payment.update({
@@ -485,7 +515,7 @@ export class PaymentsService {
     cardHolderName: string;
     payerEmail?: string;
   }) {
-    this.logger.log("🧪 Processing test card payment", {
+    this.logger.log('🧪 Processing test card payment', {
       booking_id: cardData.bookingId,
       amount: cardData.amount,
       card_mask: `****-****-****-${cardData.cardNumber.slice(-4)}`,
@@ -493,51 +523,46 @@ export class PaymentsService {
 
     // Validar que sea tarjeta de prueba
     const testCards = [
-      "5031755734530604", // Visa aprobada
-      "4509953566233704", // Mastercard aprobada
-      "4774461290010078", // Visa rechazada
+      '5031755734530604', // Visa aprobada
+      '4509953566233704', // Mastercard aprobada
+      '4774461290010078', // Visa rechazada
     ];
 
     if (!testCards.includes(cardData.cardNumber)) {
       throw new BadRequestException(
         `Tarjeta ${
           cardData.cardNumber
-        } no es una tarjeta de prueba válida. Use: ${testCards.join(", ")}`
+        } no es una tarjeta de prueba válida. Use: ${testCards.join(', ')}`,
       );
     }
 
     // Simular resultado según tarjeta
-    const isApproved = ["5031755734530604", "4509953566233704"].includes(
-      cardData.cardNumber
-    );
+    const isApproved = ['5031755734530604', '4509953566233704'].includes(cardData.cardNumber);
 
     // Crear payment record
     const payment = await this._prisma.payment.create({
       data: {
         amount: cardData.amount,
         netAmount: cardData.amount, // For test cards, assume full amount
-        currency: "ARS",
+        currency: 'ARS',
         status: isApproved ? PaymentStatus.COMPLETED : PaymentStatus.FAILED,
         payerEmail: cardData.payerEmail,
-        paymentId: cardData.cardNumber.startsWith("5") ? "master" : "visa", // Use paymentId field for method type
+        paymentId: cardData.cardNumber.startsWith('5') ? 'master' : 'visa', // Use paymentId field for method type
         metadata: {
-          type: "test_card",
+          type: 'test_card',
           bookingId: cardData.bookingId, // Store bookingId in metadata
           card_mask: `****-****-****-${cardData.cardNumber.slice(-4)}`,
-          test_result: isApproved ? "approved" : "rejected",
+          test_result: isApproved ? 'approved' : 'rejected',
           cardholder: cardData.cardHolderName,
         },
       },
     });
 
-    this.logger.log(
-      `✅ Test card payment ${isApproved ? "approved" : "rejected"}`,
-      {
-        payment_id: payment.id,
-        status: payment.status,
-        amount: payment.amount,
-      }
-    );
+    this.logger.log(`✅ Test card payment ${isApproved ? 'approved' : 'rejected'}`, {
+      payment_id: payment.id,
+      status: payment.status,
+      amount: payment.amount,
+    });
 
     return {
       payment_id: payment.id,
@@ -545,8 +570,8 @@ export class PaymentsService {
       amount: payment.amount,
       approved: isApproved,
       message: isApproved
-        ? "Pago de prueba aprobado exitosamente"
-        : "Pago de prueba rechazado (simulado)",
+        ? 'Pago de prueba aprobado exitosamente'
+        : 'Pago de prueba rechazado (simulado)',
     };
   }
 }
