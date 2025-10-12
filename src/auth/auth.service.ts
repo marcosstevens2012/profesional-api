@@ -1,13 +1,4 @@
 import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  UnauthorizedException,
-} from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { JwtService } from "@nestjs/jwt";
-import * as bcrypt from "@node-rs/bcrypt";
-import {
   AuthResponse,
   AuthTokens,
   ForgotPasswordRequest,
@@ -17,12 +8,21 @@ import {
   RegisterRequest,
   ResetPasswordRequest,
   VerifyEmailRequest,
-} from "@marcosstevens2012/contracts";
-import * as crypto from "crypto";
-import { JwtPayload } from "../common/guards/jwt-auth.guard";
-import { EmailService } from "../common/services/email.service";
-import { JwtConfig } from "../config/jwt.config";
-import { PrismaService } from "../database/prisma.service";
+} from '@marcosstevens2012/contracts';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from '@node-rs/bcrypt';
+import * as crypto from 'crypto';
+import { JwtPayload } from '../common/guards/jwt-auth.guard';
+import { EmailService } from '../common/services/email.service';
+import { JwtConfig } from '../config/jwt.config';
+import { PrismaService } from '../database/prisma.service';
 
 @Injectable()
 export class AuthService {
@@ -32,9 +32,9 @@ export class AuthService {
     private readonly _jwtService: JwtService,
     private readonly _prisma: PrismaService,
     private readonly _emailService: EmailService,
-    _configService: ConfigService
+    _configService: ConfigService,
   ) {
-    this.jwtConfig = _configService.get<JwtConfig>("jwt")!;
+    this.jwtConfig = _configService.get<JwtConfig>('jwt')!;
   }
 
   /**
@@ -49,24 +49,24 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException("El email ya está registrado");
+      throw new ConflictException('El email ya está registrado');
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Create user and profile in transaction
-    const user = await this._prisma.$transaction(async tx => {
+    const user = await this._prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
         data: {
           email,
           password: hashedPassword,
           role: role.toUpperCase() as any,
-          status: "PENDING_VERIFICATION",
+          status: 'PENDING_VERIFICATION',
           profile: {
             create: {
-              firstName: name.split(" ")[0] || name,
-              lastName: name.split(" ").slice(1).join(" ") || "",
+              firstName: name.split(' ')[0] || name,
+              lastName: name.split(' ').slice(1).join(' ') || '',
             },
           },
         },
@@ -81,13 +81,13 @@ export class AuthService {
         data: {
           userId: newUser.id,
           token: verificationToken,
-          type: "EMAIL_VERIFICATION",
+          type: 'EMAIL_VERIFICATION',
           expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
         },
       });
 
       // Send verification email
-      await this._emailService.sendEmailVerification(email, verificationToken);
+      await this._emailService.sendEmailVerification(email, verificationToken, role);
 
       return newUser;
     });
@@ -105,7 +105,7 @@ export class AuthService {
         email: user.email,
         name: `${user.profile?.firstName} ${user.profile?.lastName}`.trim(),
         avatar: user.profile?.avatar || undefined,
-        isActive: user.status === "ACTIVE",
+        isActive: user.status === 'ACTIVE',
         role: user.role.toLowerCase() as any,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
@@ -128,18 +128,27 @@ export class AuthService {
     });
 
     if (!user || user.deletedAt) {
-      throw new UnauthorizedException("Credenciales inválidas");
+      throw new UnauthorizedException('Credenciales inválidas');
     }
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedException("Credenciales inválidas");
+      throw new UnauthorizedException('Credenciales inválidas');
     }
 
     // Check if user is suspended
-    if (user.status === "SUSPENDED") {
-      throw new UnauthorizedException("Cuenta suspendida");
+    if (user.status === 'SUSPENDED') {
+      throw new UnauthorizedException(
+        'Tu cuenta ha sido suspendida. Contactá al soporte para más información.',
+      );
+    }
+
+    // Check if email is verified
+    if (user.status === 'PENDING_VERIFICATION') {
+      throw new UnauthorizedException(
+        'Necesitás verificar tu email antes de iniciar sesión. Revisá tu correo electrónico.',
+      );
     }
 
     // Generate tokens
@@ -155,7 +164,7 @@ export class AuthService {
         email: user.email,
         name: `${user.profile?.firstName} ${user.profile?.lastName}`.trim(),
         avatar: user.profile?.avatar || undefined,
-        isActive: user.status === "ACTIVE",
+        isActive: user.status === 'ACTIVE',
         role: user.role.toLowerCase() as any,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
@@ -183,12 +192,8 @@ export class AuthService {
         include: { user: true },
       });
 
-      if (
-        !storedToken ||
-        storedToken.revokedAt ||
-        storedToken.expiresAt < new Date()
-      ) {
-        throw new UnauthorizedException("Token de actualización inválido");
+      if (!storedToken || storedToken.revokedAt || storedToken.expiresAt < new Date()) {
+        throw new UnauthorizedException('Token de actualización inválido');
       }
 
       // Revoke old refresh token
@@ -206,7 +211,7 @@ export class AuthService {
 
       return tokens;
     } catch (error) {
-      throw new UnauthorizedException("Token de actualización inválido");
+      throw new UnauthorizedException('Token de actualización inválido');
     }
   }
 
@@ -221,22 +226,29 @@ export class AuthService {
       include: { user: true },
     });
 
-    if (
-      !verificationToken ||
-      verificationToken.type !== "EMAIL_VERIFICATION" ||
-      verificationToken.usedAt ||
-      verificationToken.expiresAt < new Date()
-    ) {
+    if (!verificationToken) {
+      throw new BadRequestException('Token de verificación inválido');
+    }
+
+    if (verificationToken.type !== 'EMAIL_VERIFICATION') {
+      throw new BadRequestException('Token de verificación inválido');
+    }
+
+    if (verificationToken.usedAt) {
+      throw new BadRequestException('Este token ya fue utilizado. Tu email ya está verificado.');
+    }
+
+    if (verificationToken.expiresAt < new Date()) {
       throw new BadRequestException(
-        "Token de verificación inválido o expirado"
+        'El token de verificación ha expirado. Solicitá un nuevo email de verificación.',
       );
     }
 
     // Update user status and mark token as used
-    await this._prisma.$transaction(async tx => {
+    await this._prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: verificationToken.userId! },
-        data: { status: "ACTIVE" },
+        data: { status: 'ACTIVE' },
       });
 
       await tx.verificationToken.update({
@@ -245,7 +257,10 @@ export class AuthService {
       });
     });
 
-    return { message: "Email verificado exitosamente" };
+    return {
+      message:
+        '¡Email verificado exitosamente! Ya podés acceder a todas las funcionalidades de la plataforma.',
+    };
   }
 
   /**
@@ -261,8 +276,7 @@ export class AuthService {
     if (!user || user.deletedAt) {
       // Don't reveal if email exists for security
       return {
-        message:
-          "Si el email existe, recibirás instrucciones para restablecer tu contraseña",
+        message: 'Si el email existe, recibirás instrucciones para restablecer tu contraseña',
       };
     }
 
@@ -274,7 +288,7 @@ export class AuthService {
         userId: user.id,
         email: user.email,
         token: resetToken,
-        type: "PASSWORD_RESET",
+        type: 'PASSWORD_RESET',
         expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
       },
     });
@@ -283,8 +297,7 @@ export class AuthService {
     await this._emailService.sendPasswordReset(email, resetToken);
 
     return {
-      message:
-        "Si el email existe, recibirás instrucciones para restablecer tu contraseña",
+      message: 'Si el email existe, recibirás instrucciones para restablecer tu contraseña',
     };
   }
 
@@ -301,20 +314,18 @@ export class AuthService {
 
     if (
       !verificationToken ||
-      verificationToken.type !== "PASSWORD_RESET" ||
+      verificationToken.type !== 'PASSWORD_RESET' ||
       verificationToken.usedAt ||
       verificationToken.expiresAt < new Date()
     ) {
-      throw new BadRequestException(
-        "Token de restablecimiento inválido o expirado"
-      );
+      throw new BadRequestException('Token de restablecimiento inválido o expirado');
     }
 
     // Hash new password
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Update password and mark token as used
-    await this._prisma.$transaction(async tx => {
+    await this._prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: verificationToken.userId! },
         data: { password: hashedPassword },
@@ -332,7 +343,66 @@ export class AuthService {
       });
     });
 
-    return { message: "Contraseña restablecida exitosamente" };
+    return { message: 'Contraseña restablecida exitosamente' };
+  }
+
+  /**
+   * Resend email verification
+   */
+  async resendVerificationEmail(email: string): Promise<MessageResponse> {
+    const user = await this._prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user || user.deletedAt) {
+      // Don't reveal if email exists for security
+      return {
+        message:
+          'Si el email existe y no está verificado, recibirás un nuevo correo de verificación.',
+      };
+    }
+
+    // Check if already verified
+    if (user.status === 'ACTIVE') {
+      throw new BadRequestException('Este email ya está verificado');
+    }
+
+    // Check if user is suspended
+    if (user.status === 'SUSPENDED') {
+      throw new BadRequestException(
+        'No se puede enviar email de verificación a una cuenta suspendida',
+      );
+    }
+
+    // Invalidate previous verification tokens
+    await this._prisma.verificationToken.updateMany({
+      where: {
+        userId: user.id,
+        type: 'EMAIL_VERIFICATION',
+        usedAt: null,
+      },
+      data: {
+        usedAt: new Date(), // Mark as used to invalidate
+      },
+    });
+
+    // Generate new verification token
+    const verificationToken = crypto.randomUUID();
+    await this._prisma.verificationToken.create({
+      data: {
+        userId: user.id,
+        token: verificationToken,
+        type: 'EMAIL_VERIFICATION',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+      },
+    });
+
+    // Send verification email
+    await this._emailService.sendEmailVerification(user.email, verificationToken, user.role);
+
+    return {
+      message: 'Email de verificación enviado. Revisá tu correo electrónico (incluyendo spam).',
+    };
   }
 
   /**
@@ -344,15 +414,13 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
 
-    return { message: "Sesión cerrada exitosamente" };
+    return { message: 'Sesión cerrada exitosamente' };
   }
 
   /**
    * Generate access and refresh tokens
    */
-  private async generateTokens(
-    payload: Omit<JwtPayload, "iat" | "exp">
-  ): Promise<AuthTokens> {
+  private async generateTokens(payload: Omit<JwtPayload, 'iat' | 'exp'>): Promise<AuthTokens> {
     // Generate access token
     const accessToken = await this._jwtService.signAsync(payload, {
       secret: this.jwtConfig.secret,

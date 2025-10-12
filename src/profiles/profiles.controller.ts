@@ -10,109 +10,105 @@ import {
   Query,
   Req,
   UseGuards,
-} from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { Public, Role, Roles } from "../common";
-import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
-import { ConfigureMercadoPagoDto } from "./dto/configure-mercadopago.dto";
-import { UpdateProfileDto } from "./dto/update-profile.dto";
-import { ProfilesService } from "./profiles.service";
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { EmailVerifiedGuard, Public, Role, Roles } from '../common';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { ConfigureMercadoPagoDto } from './dto/configure-mercadopago.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ProfilesService } from './profiles.service';
 
-@ApiTags("Profiles")
+@ApiTags('Profiles')
 @ApiBearerAuth()
-@Controller("profiles")
+@Controller('profiles')
 export class ProfilesController {
   constructor(private readonly _profilesService: ProfilesService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, EmailVerifiedGuard)
   @Roles(Role.PROFESSIONAL)
-  @ApiOperation({ summary: "Create professional profile" })
+  @ApiOperation({ summary: 'Create professional profile' })
   create(@Body() createProfileDto: any) {
     return this._profilesService.create(createProfileDto);
   }
 
-  @Get("me")
+  @Get('me')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: "Get current user profile" })
+  @ApiOperation({ summary: 'Get current user profile' })
   getMyProfile(@Req() req: any) {
     return this._profilesService.getMyProfile(req.user.userId);
   }
 
-  @Patch("me")
+  @Patch('me')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: "Update current user profile" })
+  @ApiOperation({ summary: 'Update current user profile' })
   updateMyProfile(@Req() req: any, @Body() updateProfileDto: UpdateProfileDto) {
-    return this._profilesService.updateMyProfile(
-      req.user.userId,
-      updateProfileDto
-    );
+    return this._profilesService.updateMyProfile(req.user.userId, updateProfileDto);
   }
 
   @Get()
   @Public()
-  @ApiOperation({ summary: "Get all profiles" })
+  @ApiOperation({ summary: 'Get all profiles' })
   findAll(@Query() query: any) {
     return this._profilesService.findAll(query);
   }
 
-  @Get("slug/:slug")
+  @Get('slug/:slug')
   @Public()
-  @ApiOperation({ summary: "Get profile by slug" })
-  findBySlug(@Param("slug") slug: string) {
+  @ApiOperation({ summary: 'Get profile by slug' })
+  findBySlug(@Param('slug') slug: string) {
     return this._profilesService.findBySlug(slug);
   }
 
-  @Get(":id")
+  @Get(':id')
   @Public()
-  @ApiOperation({ summary: "Get profile by ID" })
-  findOne(@Param("id") id: string) {
+  @ApiOperation({ summary: 'Get profile by ID' })
+  findOne(@Param('id') id: string) {
     return this._profilesService.findOne(id);
   }
 
-  @Patch(":id")
+  @Patch(':id')
   @Roles(Role.PROFESSIONAL)
-  @ApiOperation({ summary: "Update profile" })
-  update(@Param("id") id: string, @Body() updateProfileDto: any) {
+  @ApiOperation({ summary: 'Update profile' })
+  update(@Param('id') id: string, @Body() updateProfileDto: any) {
     return this._profilesService.update(id, updateProfileDto);
   }
 
-  @Delete(":id")
+  @Delete(':id')
   @Roles(Role.PROFESSIONAL, Role.ADMIN)
-  @ApiOperation({ summary: "Delete profile" })
-  remove(@Param("id") id: string) {
+  @ApiOperation({ summary: 'Delete profile' })
+  remove(@Param('id') id: string) {
     return this._profilesService.remove(id);
   }
 
-  @Patch("me/toggle-active")
+  @Patch('me/toggle-active')
   @UseGuards(JwtAuthGuard)
   @Roles(Role.PROFESSIONAL)
-  @ApiOperation({ summary: "Toggle professional active status" })
+  @ApiOperation({ summary: 'Toggle professional active status' })
   toggleActiveStatus(@Req() req: any) {
-    return this._profilesService.toggleProfessionalActiveStatus(
-      req.user.userId
-    );
+    return this._profilesService.toggleProfessionalActiveStatus(req.user.userId);
   }
 
-  @Get("me/active-status")
+  @Get('me/active-status')
   @UseGuards(JwtAuthGuard)
   @Roles(Role.PROFESSIONAL)
-  @ApiOperation({ summary: "Get professional active status" })
+  @ApiOperation({ summary: 'Get professional active status' })
   getActiveStatus(@Req() req: any) {
     return this._profilesService.getProfessionalActiveStatus(req.user.userId);
   }
 
-  @Put("me/mercadopago")
+  @Put('me/mercadopago')
   @UseGuards(JwtAuthGuard)
   @Roles(Role.PROFESSIONAL)
-  @ApiOperation({ summary: "Configure MercadoPago credentials" })
+  @ApiOperation({ summary: 'Configure MercadoPago credentials' })
   configureMercadoPago(@Req() req: any, @Body() dto: ConfigureMercadoPagoDto) {
     return this._profilesService.configureMercadoPago(req.user.userId, dto);
   }
 
-  @Get("me/mercadopago")
+  @Get('me/mercadopago')
   @UseGuards(JwtAuthGuard)
   @Roles(Role.PROFESSIONAL)
-  @ApiOperation({ summary: "Get MercadoPago configuration status" })
+  @ApiOperation({ summary: 'Get MercadoPago configuration status' })
   getMercadoPagoConfig(@Req() req: any) {
     return this._profilesService.getMercadoPagoConfig(req.user.userId);
   }

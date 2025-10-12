@@ -1,6 +1,6 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { EmailConfig } from "../../config/email.config";
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EmailConfig } from '../../config/email.config';
 
 export interface SendEmailParams {
   to: string;
@@ -15,7 +15,7 @@ export class EmailService {
   private readonly emailConfig: EmailConfig;
 
   constructor(configService: ConfigService) {
-    this.emailConfig = configService.get<EmailConfig>("email")!;
+    this.emailConfig = configService.get<EmailConfig>('email')!;
   }
 
   /**
@@ -38,38 +38,63 @@ export class EmailService {
     }
 
     // Simulate async operation
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
 
   /**
    * Send email verification
    */
-  async sendEmailVerification(email: string, token: string): Promise<void> {
+  async sendEmailVerification(email: string, token: string, userRole?: string): Promise<void> {
     const verificationUrl = `${this.emailConfig.baseUrl}/verificar-email?token=${token}`;
+
+    const isProfessional = userRole?.toUpperCase() === 'PROFESSIONAL';
+    const greeting = isProfessional
+      ? '¡Bienvenido/a a Profesional!'
+      : '¡Bienvenido/a a Profesional!';
+    const message = isProfessional
+      ? 'Gracias por registrarte como profesional. Para comenzar a ofrecer tus servicios, primero necesitamos verificar tu dirección de email.'
+      : 'Gracias por registrarte. Para completar tu registro, necesitamos verificar tu dirección de email.';
 
     await this.sendEmail({
       to: email,
-      subject: "Verificá tu email - Profesional",
+      subject: 'Verificá tu email - Profesional',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1>¡Bienvenido a Profesional!</h1>
-          <p>Gracias por registrarte. Para completar tu registro, necesitamos verificar tu dirección de email.</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${verificationUrl}"
-               style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
-              Verificar Email
-            </a>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h1 style="color: #007bff; margin-bottom: 20px;">${greeting}</h1>
+            <p style="font-size: 16px; color: #333; line-height: 1.6;">${message}</p>
+            <div style="text-align: center; margin: 40px 0;">
+              <a href="${verificationUrl}"
+                 style="background-color: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; font-size: 16px;">
+                Verificar Email
+              </a>
+            </div>
+            <div style="background-color: #f0f8ff; padding: 15px; border-left: 4px solid #007bff; margin: 20px 0;">
+              <p style="margin: 0; font-size: 14px; color: #555;">
+                <strong>Importante:</strong> Este enlace expira en 24 horas.
+              </p>
+            </div>
+            <p style="font-size: 14px; color: #666;">Si no podés hacer click en el botón, copiá y pegá este enlace en tu navegador:</p>
+            <p style="word-break: break-all; font-size: 12px; color: #007bff;"><a href="${verificationUrl}">${verificationUrl}</a></p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            <p style="font-size: 12px; color: #999; text-align: center;">
+              Si no creaste esta cuenta, podés ignorar este email.
+            </p>
           </div>
-          <p>Si no podés hacer click en el botón, copiá y pegá este enlace en tu navegador:</p>
-          <p><a href="${verificationUrl}">${verificationUrl}</a></p>
-          <p>Este enlace expira en 24 horas.</p>
         </div>
       `,
-      text: `¡Bienvenido a Profesional!
+      text: `${greeting}
+
+${message}
 
 Para completar tu registro, verificá tu email haciendo click en este enlace: ${verificationUrl}
 
-Este enlace expira en 24 horas.`,
+Este enlace expira en 24 horas.
+
+Si no podés acceder al enlace, copiá y pegá la siguiente URL en tu navegador:
+${verificationUrl}
+
+Si no creaste esta cuenta, podés ignorar este email.`,
     });
   }
 
@@ -81,7 +106,7 @@ Este enlace expira en 24 horas.`,
 
     await this.sendEmail({
       to: email,
-      subject: "Restablece tu contraseña - Profesional",
+      subject: 'Restablece tu contraseña - Profesional',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h1>Restablecer contraseña</h1>
