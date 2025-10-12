@@ -201,6 +201,8 @@ export class PaymentsController {
         payment_methods: {
           installments: number;
           default_installments: number;
+          excluded_payment_methods?: Array<{ id: string }>;
+          excluded_payment_types?: Array<{ id: string }>;
         };
         payer: {
           email: string;
@@ -230,8 +232,8 @@ export class PaymentsController {
 
           // En sandbox: NO excluir métodos de pago para permitir tarjetas de prueba
           // En producción: Se pueden excluir métodos específicos si es necesario
-          excluded_payment_methods: [],
-          excluded_payment_types: [],
+          // excluded_payment_methods: [{ id: 'amex' }], // Ejemplo: excluir American Express
+          // excluded_payment_types: [{ id: 'ticket' }, { id: 'atm' }], // Ejemplo: excluir efectivo
 
           // Métodos de pago disponibles en Argentina:
           // - credit_card: Tarjetas de crédito (Visa, Mastercard, Amex, etc.)
@@ -243,9 +245,7 @@ export class PaymentsController {
           // - digital_wallet: Billeteras digitales
           // - prepaid_card: Tarjetas prepagas
 
-          // Para habilitar todos los métodos, simplemente no excluir ninguno
-          // Si quisieras excluir efectivo en producción, por ejemplo:
-          // excluded_payment_types: ['ticket', 'atm'],
+          // Para habilitar todos los métodos, simplemente no incluir excluded_payment_*
         },
 
         // Información del pagador (recomendado para mejorar tasa de aprobación)
