@@ -116,11 +116,35 @@ interface MercadoPagoPreference {
 @Injectable()
 export class MercadoPagoService {
   private readonly logger = new Logger(MercadoPagoService.name);
-  private readonly baseUrl = 'https://api.mercadopago.com';
+  private readonly baseUrl: string;
   private readonly accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
   private readonly webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  private readonly isSandbox: boolean;
 
-  constructor(private readonly _httpService: HttpService) {}
+  constructor(private readonly _httpService: HttpService) {
+    // Determinar si estamos en modo sandbox
+    this.isSandbox =
+      process.env.MERCADOPAGO_SANDBOX === 'true' || this.accessToken?.startsWith('TEST-') || false;
+
+    // Configurar baseUrl según el modo
+    const configuredBaseUrl = process.env.MERCADOPAGO_BASE_URL || 'https://api.mercadopago.com';
+
+    if (this.isSandbox) {
+      // En sandbox, algunos endpoints necesitan /sandbox en la URL
+      this.baseUrl = configuredBaseUrl;
+      this.logger.warn('🧪 MERCADOPAGO SERVICE RUNNING IN SANDBOX MODE');
+    } else {
+      this.baseUrl = configuredBaseUrl;
+      this.logger.log('🏭 MercadoPago service running in PRODUCTION mode');
+    }
+
+    this.logger.debug('MercadoPago configuration', {
+      baseUrl: this.baseUrl,
+      isSandbox: this.isSandbox,
+      hasAccessToken: !!this.accessToken,
+      hasWebhookSecret: !!this.webhookSecret,
+    });
+  }
 
   async createPreference(preference: MercadoPagoPreference) {
     // Log completo del objeto que se enviará
@@ -135,9 +159,7 @@ export class MercadoPagoService {
     }
 
     // Asegurar configuración mínima para sandbox
-    const isSandbox = this.accessToken?.startsWith('TEST-');
-
-    if (isSandbox) {
+    if (this.isSandbox) {
       this.logger.debug('🧪 Using SANDBOX mode - ensuring test-friendly configuration');
 
       // En sandbox, asegurar que haya payer info (mejora tasa de aprobación)
@@ -164,7 +186,7 @@ export class MercadoPagoService {
       auto_return: preference.auto_return,
       has_back_urls: !!preference.back_urls,
       back_urls_success: preference.back_urls?.success,
-      is_sandbox: isSandbox,
+      is_sandbox: this.isSandbox,
       has_payer_email: !!preference.payer?.email,
     });
 

@@ -224,9 +224,28 @@ export class PaymentsController {
 
         // Configuración de métodos de pago (importante para sandbox)
         payment_methods: {
+          // Cuotas permitidas
           installments: 12,
           default_installments: 1,
-          // NO excluir métodos de pago en sandbox para que funcionen las tarjetas de prueba
+
+          // En sandbox: NO excluir métodos de pago para permitir tarjetas de prueba
+          // En producción: Se pueden excluir métodos específicos si es necesario
+          excluded_payment_methods: [],
+          excluded_payment_types: [],
+
+          // Métodos de pago disponibles en Argentina:
+          // - credit_card: Tarjetas de crédito (Visa, Mastercard, Amex, etc.)
+          // - debit_card: Tarjetas de débito
+          // - ticket: Efectivo (Rapipago, Pago Fácil)
+          // - bank_transfer: Transferencia bancaria
+          // - account_money: Dinero en cuenta de MercadoPago
+          // - digital_currency: Monedas digitales
+          // - digital_wallet: Billeteras digitales
+          // - prepaid_card: Tarjetas prepagas
+
+          // Para habilitar todos los métodos, simplemente no excluir ninguno
+          // Si quisieras excluir efectivo en producción, por ejemplo:
+          // excluded_payment_types: ['ticket', 'atm'],
         },
 
         // Información del pagador (recomendado para mejorar tasa de aprobación)
