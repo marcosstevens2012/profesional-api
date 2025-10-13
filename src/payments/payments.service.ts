@@ -188,7 +188,18 @@ export class PaymentsService {
       this.logger.log('✅ Webhook processed successfully');
       return { received: true, processed: true };
     } catch (error) {
-      this.logger.error('❌ Error processing webhook', error);
+      this.logger.error('❌ Error processing webhook', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        webhookType: data.type,
+        webhookId: data.id,
+      });
+
+      // Log adicional con JSON.stringify para ver TODO el error
+      console.error(
+        '🔴 FULL WEBHOOK ERROR:',
+        JSON.stringify(error, Object.getOwnPropertyNames(error), 2),
+      );
 
       // Guardar error para debugging
       await this._prisma.paymentEvent.create({
@@ -218,99 +229,124 @@ export class PaymentsService {
       external_reference: mpPayment.external_reference,
     });
 
-    // El external_reference es el bookingId
-    const bookingId = mpPayment.external_reference;
+    try {
+      // El external_reference es el bookingId
+      const bookingId = mpPayment.external_reference;
 
-    // Buscar payment por bookingId (a través de la relación con booking)
-    const booking = await this._prisma.booking.findUnique({
-      where: { id: bookingId },
-      include: { payment: true, professional: true },
-    });
+      if (!bookingId) {
+        this.logger.error('❌ No external_reference (bookingId) in MP payment', {
+          payment_id: mpPayment.id,
+        });
+        throw new Error('No external_reference in payment');
+      }
 
-    if (!booking || !booking.payment) {
-      this.logger.warn(`❌ Booking or payment not found for external reference: ${bookingId}`);
-      return;
-    }
+      this.logger.debug('🔍 Looking for booking', { bookingId });
 
-    const payment = booking.payment;
-
-    // Mapear status de MP a nuestros status
-    let newStatus: PaymentStatus;
-    switch (mpPayment.status) {
-      case 'approved':
-        newStatus = PaymentStatus.COMPLETED;
-        break;
-      case 'pending':
-        newStatus = PaymentStatus.PENDING;
-        break;
-      case 'rejected':
-      case 'cancelled':
-        newStatus = PaymentStatus.FAILED;
-        break;
-      default:
-        newStatus = PaymentStatus.PENDING;
-    }
-
-    // Actualizar payment
-    await this._prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: newStatus,
-        gatewayPaymentId: mpPayment.id.toString(),
-        paymentId: mpPayment.id.toString(), // MP payment ID
-        paidAt: newStatus === PaymentStatus.COMPLETED ? new Date() : null,
-        updatedAt: new Date(),
-      },
-    });
-
-    // Si está aprobado, actualizar booking y procesar comisiones
-    if (newStatus === PaymentStatus.COMPLETED) {
-      // Actualizar booking a WAITING_FOR_PROFESSIONAL
-      await this._prisma.booking.update({
+      // Buscar payment por bookingId (a través de la relación con booking)
+      const booking = await this._prisma.booking.findUnique({
         where: { id: bookingId },
+        include: { payment: true, professional: true },
+      });
+
+      if (!booking || !booking.payment) {
+        this.logger.warn(`❌ Booking or payment not found for external reference: ${bookingId}`);
+        throw new Error(`Booking or payment not found: ${bookingId}`);
+      }
+
+      this.logger.debug('✅ Booking found', {
+        bookingId: booking.id,
+        paymentId: booking.payment.id,
+        professionalId: booking.professionalId,
+      });
+
+      const payment = booking.payment;
+
+      // Mapear status de MP a nuestros status
+      let newStatus: PaymentStatus;
+      switch (mpPayment.status) {
+        case 'approved':
+          newStatus = PaymentStatus.COMPLETED;
+          break;
+        case 'pending':
+          newStatus = PaymentStatus.PENDING;
+          break;
+        case 'rejected':
+        case 'cancelled':
+          newStatus = PaymentStatus.FAILED;
+          break;
+        default:
+          newStatus = PaymentStatus.PENDING;
+      }
+
+      // Actualizar payment
+      await this._prisma.payment.update({
+        where: { id: payment.id },
         data: {
-          status: 'WAITING_FOR_PROFESSIONAL',
+          status: newStatus,
+          gatewayPaymentId: mpPayment.id.toString(),
+          paymentId: mpPayment.id.toString(), // MP payment ID
+          paidAt: newStatus === PaymentStatus.COMPLETED ? new Date() : null,
+          updatedAt: new Date(),
         },
       });
 
-      this.logger.log('✅ Booking updated to WAITING_FOR_PROFESSIONAL', {
-        booking_id: bookingId,
-        professional_id: booking.professionalId,
-      });
-
-      // Crear notificación para el profesional
-      await this._prisma.notification.create({
-        data: {
-          userId: booking.professional.userId, // Notificar al usuario del profesional
-          type: 'BOOKING_REQUEST',
-          title: 'Nueva solicitud de consulta',
-          message: `Tienes una nueva solicitud de consulta pagada. El cliente ya realizó el pago de $${payment.amount}.`,
-          payload: {
-            bookingId: booking.id,
-            amount: payment.amount.toString(),
-            paymentId: payment.id,
-            clientId: booking.clientId,
+      // Si está aprobado, actualizar booking y procesar comisiones
+      if (newStatus === PaymentStatus.COMPLETED) {
+        // Actualizar booking a WAITING_FOR_PROFESSIONAL
+        await this._prisma.booking.update({
+          where: { id: bookingId },
+          data: {
+            status: 'WAITING_FOR_PROFESSIONAL',
           },
-        },
-      });
+        });
 
-      this.logger.log('✅ Notification created for professional', {
-        professional_user_id: booking.professional.userId,
+        this.logger.log('✅ Booking updated to WAITING_FOR_PROFESSIONAL', {
+          booking_id: bookingId,
+          professional_id: booking.professionalId,
+        });
+
+        // Crear notificación para el profesional
+        await this._prisma.notification.create({
+          data: {
+            userId: booking.professional.userId, // Notificar al usuario del profesional
+            type: 'BOOKING_REQUEST',
+            title: 'Nueva solicitud de consulta',
+            message: `Tienes una nueva solicitud de consulta pagada. El cliente ya realizó el pago de $${payment.amount}.`,
+            payload: {
+              bookingId: booking.id,
+              amount: payment.amount.toString(),
+              paymentId: payment.id,
+              clientId: booking.clientId,
+            },
+          },
+        });
+
+        this.logger.log('✅ Notification created for professional', {
+          professional_user_id: booking.professional.userId,
+          booking_id: bookingId,
+        });
+
+        // TODO: Enviar email al profesional
+        // await this.emailService.sendBookingRequestEmail(booking);
+
+        await this.processApprovedPayment(payment, mpPayment);
+      }
+
+      this.logger.log('✅ Payment notification processed', {
+        payment_id: payment.id,
         booking_id: bookingId,
+        new_status: newStatus,
+        mp_status: mpPayment.status,
       });
-
-      // TODO: Enviar email al profesional
-      // await this.emailService.sendBookingRequestEmail(booking);
-
-      await this.processApprovedPayment(payment, mpPayment);
+    } catch (error) {
+      this.logger.error('❌ Error in processPaymentNotification', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        payment_id: mpPayment.id,
+        external_reference: mpPayment.external_reference,
+      });
+      throw error;
     }
-
-    this.logger.log('✅ Payment notification processed', {
-      payment_id: payment.id,
-      booking_id: bookingId,
-      new_status: newStatus,
-      mp_status: mpPayment.status,
-    });
   }
 
   private async processMerchantOrderNotification(merchantOrder: MPMerchantOrderResponse) {

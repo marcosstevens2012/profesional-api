@@ -528,7 +528,12 @@ export class PaymentsController {
       await this._paymentsService.handleWebhook(webhookData);
       return { status: 'ok', processed: true };
     } catch (error) {
-      this.logger.error('❌ Error processing webhook', error);
+      this.logger.error('❌ Error processing webhook', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        webhookData: JSON.stringify(webhookData),
+      });
+      console.error('🔴 FULL CONTROLLER ERROR:', error);
       return {
         status: 'error',
         processed: false,
