@@ -281,6 +281,9 @@ export class MercadoPagoService {
         accessTokenPrefix: this.accessToken?.substring(0, 15) + '...',
       });
 
+      // Log adicional con JSON.stringify para ver TODO el contenido
+      console.error('🔴 FULL ERROR DETAILS:', JSON.stringify(errorDetails, null, 2));
+
       throw error;
     }
   }

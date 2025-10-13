@@ -116,6 +116,13 @@ export class PaymentsService {
           processedData = await this._mercadoPagoService.processWebhookNotification(data);
           break; // Éxito, salir del loop
         } catch (error) {
+          // Log detallado del error
+          console.error(`🔴 ATTEMPT ${attempts} ERROR DETAILS:`, {
+            message: error instanceof Error ? error.message : 'Unknown',
+            stack: error instanceof Error ? error.stack : undefined,
+            fullError: JSON.stringify(error, Object.getOwnPropertyNames(error), 2),
+          });
+
           this.logger.warn(`⚠️ Attempt ${attempts} failed to fetch MP data`, {
             error: error instanceof Error ? error.message : 'Unknown error',
             will_retry: attempts < maxAttempts,
