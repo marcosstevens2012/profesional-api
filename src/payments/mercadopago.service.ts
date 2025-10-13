@@ -220,13 +220,17 @@ export class MercadoPagoService {
   }
 
   async getPayment(paymentId: string): Promise<MPPaymentResponse> {
+    const fullUrl = `${this.baseUrl}/v1/payments/${paymentId}`;
     this.logger.debug(`🔍 Getting MP payment ${paymentId}`);
+    this.logger.debug(`📍 Full URL: ${fullUrl}`);
+    this.logger.debug(`🔑 Access Token: ${this.accessToken?.substring(0, 20)}...`);
 
     try {
       const response = await firstValueFrom(
-        this._httpService.get(`${this.baseUrl}/v1/payments/${paymentId}`, {
+        this._httpService.get(fullUrl, {
           headers: {
             Authorization: `Bearer ${this.accessToken}`,
+            'Content-Type': 'application/json',
           },
           timeout: 10000,
         }),
