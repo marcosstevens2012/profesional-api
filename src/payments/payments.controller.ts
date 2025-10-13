@@ -869,6 +869,137 @@ Devuelve toda la información del pago, incluyendo booking y estado actual.`,
     }
   }
 
+  // ===== DEBUGGING & ADMIN ENDPOINTS =====
+
+  @Get('debug/mp/:paymentId')
+  @Public()
+  @ApiOperation({
+    summary: '[DEBUG] Consultar pago directamente en MercadoPago API',
+    description: `Endpoint de debugging que consulta el estado de un pago directamente 
+en la API de MercadoPago, sin usar nuestra base de datos.
+
+**Uso principal:**
+- Debugging de webhooks
+- Verificar el estado real en MercadoPago
+- Comparar datos entre MP y nuestra BD
+- Testing de conectividad con MP API
+
+**Diferencia con \`/payment/:id\`:**
+- Este endpoint consulta **directamente a MercadoPago**
+- No busca en nuestra base de datos
+- Devuelve la respuesta **exacta de la API de MP**
+- Útil para troubleshooting
+
+**Ejemplo de uso:**
+\`\`\`bash
+GET /payments/debug/mp/129198544875
+\`\`\`
+
+Devuelve todos los datos del pago tal como los tiene MercadoPago.`,
+  })
+  @ApiParam({
+    name: 'paymentId',
+    description: 'Payment ID de MercadoPago (número)',
+    example: '129198544875',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Información del pago obtenida de MercadoPago',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        source: { type: 'string', example: 'mercadopago_api' },
+        data: {
+          type: 'object',
+          description: 'Respuesta completa de la API de MercadoPago',
+          properties: {
+            id: { type: 'number', example: 129198544875 },
+            status: { type: 'string', example: 'approved' },
+            status_detail: { type: 'string', example: 'accredited' },
+            transaction_amount: { type: 'number', example: 45000 },
+            currency_id: { type: 'string', example: 'ARS' },
+            external_reference: { type: 'string', example: 'cmgpdrnn5000312f8fhwvunlh' },
+            date_approved: { type: 'string', example: '2025-10-13T13:02:01.000-04:00' },
+            payer: { type: 'object' },
+            payment_method: { type: 'object' },
+            transaction_details: { type: 'object' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Pago no encontrado en MercadoPago',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Error de autenticación con MercadoPago',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Error al consultar MercadoPago API',
+  })
+  async getPaymentFromMercadoPago(@Param('paymentId') paymentId: string) {
+    this.logger.log(`🔍 [DEBUG] Fetching payment ${paymentId} directly from MercadoPago API`);
+
+    try {
+      const mpPayment = await this._mercadoPagoService.getPayment(paymentId);
+
+      return {
+        success: true,
+        source: 'mercadopago_api',
+        timestamp: new Date().toISOString(),
+        data: mpPayment,
+        summary: {
+          id: mpPayment.id,
+          status: mpPayment.status,
+          status_detail: mpPayment.status_detail,
+          transaction_amount: mpPayment.transaction_amount,
+          currency_id: mpPayment.currency_id,
+          external_reference: mpPayment.external_reference,
+          date_created: mpPayment.date_created,
+          date_approved: mpPayment.date_approved,
+          payer_email: mpPayment.payer?.email,
+          payment_method_id: mpPayment.payment_method_id,
+        },
+      };
+    } catch (error: unknown) {
+      this.logger.error(`❌ [DEBUG] Error fetching from MercadoPago: ${paymentId}`, error);
+
+      // Extraer información del error para debugging
+      const errorInfo: {
+        status?: number;
+        statusText?: string;
+        message: string;
+        data?: unknown;
+      } = {
+        message: error instanceof Error ? error.message : 'Unknown error',
+      };
+
+      if (error && typeof error === 'object') {
+        const axiosError = error as {
+          response?: { status: number; statusText: string; data: unknown };
+        };
+
+        if (axiosError.response) {
+          errorInfo.status = axiosError.response.status;
+          errorInfo.statusText = axiosError.response.statusText;
+          errorInfo.data = axiosError.response.data;
+        }
+      }
+
+      throw new BadRequestException({
+        success: false,
+        source: 'mercadopago_api',
+        timestamp: new Date().toISOString(),
+        error: errorInfo,
+        paymentId,
+      });
+    }
+  }
+
   // ===== RUTAS PARAMÉTRICAS AL FINAL =====
 
   @Get('payment/:id')

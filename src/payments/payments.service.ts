@@ -105,8 +105,8 @@ export class PaymentsService {
       // Procesar según tipo de notificación con retry logic
       let processedData;
       let attempts = 0;
-      const maxAttempts = 3;
-      const retryDelay = 2000; // 2 segundos
+      const maxAttempts = 5; // Aumentado de 3 a 5 intentos
+      const retryDelay = 3000; // Aumentado de 2s a 3s
 
       while (attempts < maxAttempts) {
         try {
