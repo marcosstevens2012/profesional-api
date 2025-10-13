@@ -228,6 +228,7 @@ export class MercadoPagoService {
           headers: {
             Authorization: `Bearer ${this.accessToken}`,
           },
+          timeout: 10000,
         }),
       );
 
@@ -241,9 +242,45 @@ export class MercadoPagoService {
 
       return response.data;
     } catch (error: unknown) {
+      // Extraer detalles del error de Axios
+      const errorDetails: Record<string, unknown> = {};
+
+      if (error && typeof error === 'object') {
+        const axiosError = error as {
+          response?: { status: number; statusText: string; data: unknown; headers: unknown };
+          request?: unknown;
+          message?: string;
+          code?: string;
+        };
+
+        if (axiosError.response) {
+          // La petición se hizo y el servidor respondió con un código de error
+          errorDetails.status = axiosError.response.status;
+          errorDetails.statusText = axiosError.response.statusText;
+          errorDetails.data = axiosError.response.data;
+          errorDetails.headers = axiosError.response.headers;
+        } else if (axiosError.request) {
+          // La petición se hizo pero no hubo respuesta
+          errorDetails.message = 'No response from MercadoPago API';
+          errorDetails.request = 'Request made but no response received';
+        } else {
+          // Algo pasó al configurar la petición
+          errorDetails.message = axiosError.message || 'Unknown error';
+        }
+
+        if (axiosError.code) {
+          errorDetails.code = axiosError.code;
+        }
+      }
+
       this.logger.error(`❌ Error getting MP payment ${paymentId}`, {
         error: error instanceof Error ? error.message : 'Unknown error',
+        details: errorDetails,
+        url: `${this.baseUrl}/v1/payments/${paymentId}`,
+        hasAccessToken: !!this.accessToken,
+        accessTokenPrefix: this.accessToken?.substring(0, 15) + '...',
       });
+
       throw error;
     }
   }

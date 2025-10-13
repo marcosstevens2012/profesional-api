@@ -98,15 +98,55 @@ export class PaymentsService {
       id: data.id,
       type: data.type,
       action: data.action,
+      data_id: data.data?.id,
     });
 
     try {
-      // Procesar según tipo de notificación
-      const processedData = await this._mercadoPagoService.processWebhookNotification(data);
+      // Procesar según tipo de notificación con retry logic
+      let processedData;
+      let attempts = 0;
+      const maxAttempts = 3;
+      const retryDelay = 2000; // 2 segundos
+
+      while (attempts < maxAttempts) {
+        try {
+          attempts++;
+          this.logger.debug(`🔄 Attempting to fetch MP data (attempt ${attempts}/${maxAttempts})`);
+
+          processedData = await this._mercadoPagoService.processWebhookNotification(data);
+          break; // Éxito, salir del loop
+        } catch (error) {
+          this.logger.warn(`⚠️ Attempt ${attempts} failed to fetch MP data`, {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            will_retry: attempts < maxAttempts,
+          });
+
+          if (attempts >= maxAttempts) {
+            // Último intento falló, re-lanzar el error
+            throw error;
+          }
+
+          // Esperar antes de reintentar
+          await new Promise((resolve) => setTimeout(resolve, retryDelay * attempts));
+        }
+      }
 
       if (!processedData) {
-        this.logger.warn('⚠️ No data to process from webhook');
-        return { received: true };
+        this.logger.warn('⚠️ No data to process from webhook after all attempts');
+
+        // Guardar evento fallido para debugging
+        await this._prisma.paymentEvent.create({
+          data: {
+            paymentId: `no-data-${Date.now()}`,
+            externalId: data.id,
+            type: data.type || 'unknown',
+            rawPayload: JSON.parse(JSON.stringify(data)),
+            idempotencyKey: `webhook-no-data-${data.id}-${Date.now()}`,
+            data: JSON.parse(JSON.stringify({ message: 'No data returned from MP API' })),
+          },
+        });
+
+        return { received: true, processed: false, reason: 'No data from MP API' };
       }
 
       // Guardar evento de webhook
@@ -326,7 +366,8 @@ export class PaymentsService {
   async getPayment(paymentId: string) {
     this.logger.debug(`Getting payment ${paymentId}`);
 
-    const payment = await this._prisma.payment.findUnique({
+    // Intentar buscar por CUID primero, luego por paymentId de MercadoPago
+    let payment = await this._prisma.payment.findUnique({
       where: { id: paymentId },
       include: {
         events: {
@@ -346,10 +387,126 @@ export class PaymentsService {
       },
     });
 
+    // Si no lo encuentra por CUID, buscar por paymentId de MercadoPago
+    if (!payment) {
+      this.logger.debug(`Payment not found by CUID, trying by MercadoPago payment ID`);
+      payment = await this._prisma.payment.findFirst({
+        where: {
+          OR: [{ paymentId: paymentId }, { gatewayPaymentId: paymentId }],
+        },
+        include: {
+          events: {
+            orderBy: { createdAt: 'desc' },
+            take: 10, // Últimos 10 eventos
+          },
+          booking: {
+            include: {
+              professional: {
+                select: { id: true, name: true, email: true },
+              },
+              client: {
+                select: { id: true, name: true, email: true },
+              },
+            },
+          },
+        },
+      });
+    }
+
     if (!payment) {
       throw new BadRequestException(`Payment ${paymentId} not found`);
     }
 
+    this.logger.debug(
+      `✅ Payment found: ${payment.id} (MP ID: ${payment.paymentId || payment.gatewayPaymentId})`,
+    );
+    return payment;
+  }
+
+  /**
+   * Obtener pago usando los parámetros que MercadoPago envía en la URL de retorno
+   * Busca por: payment_id, external_reference (booking ID), o preference_id
+   */
+  async getPaymentByMPParams(params: {
+    payment_id?: string;
+    collection_id?: string;
+    external_reference?: string;
+    preference_id?: string;
+  }) {
+    this.logger.debug(`🔍 Getting payment by MP return params`, params);
+
+    // Construir condiciones de búsqueda
+    const whereConditions: Array<
+      | { paymentId: string }
+      | { gatewayPaymentId: string }
+      | { preferenceId: string }
+      | { booking: { id: string } }
+    > = [];
+
+    // 1. Buscar por payment_id o collection_id
+    if (params.payment_id) {
+      whereConditions.push(
+        { paymentId: params.payment_id },
+        { gatewayPaymentId: params.payment_id },
+      );
+    }
+    if (params.collection_id && params.collection_id !== params.payment_id) {
+      whereConditions.push(
+        { paymentId: params.collection_id },
+        { gatewayPaymentId: params.collection_id },
+      );
+    }
+
+    // 2. Buscar por preference_id
+    if (params.preference_id) {
+      whereConditions.push({ preferenceId: params.preference_id });
+    }
+
+    // 3. Buscar por external_reference (booking ID)
+    if (params.external_reference) {
+      whereConditions.push({
+        booking: {
+          id: params.external_reference,
+        },
+      });
+    }
+
+    if (whereConditions.length === 0) {
+      throw new BadRequestException('No valid search parameters provided');
+    }
+
+    const payment = await this._prisma.payment.findFirst({
+      where: {
+        OR: whereConditions,
+      },
+      include: {
+        events: {
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        },
+        booking: {
+          include: {
+            professional: {
+              select: { id: true, name: true, email: true },
+            },
+            client: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!payment) {
+      this.logger.warn(`Payment not found with MP params`, params);
+      throw new BadRequestException(
+        `Payment not found with provided parameters: ${JSON.stringify(params)}`,
+      );
+    }
+
+    this.logger.log(
+      `✅ Payment found by MP params: ${payment.id} (MP ID: ${payment.paymentId || payment.gatewayPaymentId})`,
+    );
     return payment;
   }
 

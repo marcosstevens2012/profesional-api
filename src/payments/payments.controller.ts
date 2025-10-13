@@ -7,6 +7,7 @@ import {
   Logger,
   Param,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -15,11 +16,13 @@ import {
   ApiOperation,
   ApiParam,
   ApiProduces,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { CreatePreferenceDto, CreateSimplePreferenceDto } from './dto/create-preference.dto';
+import { MercadoPagoReturnDto } from './dto/mp-return.dto';
 import { TestCardDto, WebhookNotificationDto } from './dto/webhook.dto';
 import { MercadoPagoService } from './mercadopago.service';
 import { PaymentsService } from './payments.service';
@@ -737,12 +740,146 @@ En modo PRODUCCIÓN, retorna una clave que comienza con \`APP_USR-\`.`,
     };
   }
 
+  @Get('status')
+  @Public()
+  @ApiOperation({
+    summary: 'Obtener estado del pago desde URL de retorno de MercadoPago',
+    description: `Endpoint optimizado para la página de éxito/error de MercadoPago.
+    
+**Uso principal:**
+Este endpoint está diseñado para ser llamado desde las páginas de retorno (success, failure, pending)
+después de que MercadoPago redirige al usuario de vuelta a tu sitio.
+
+**Parámetros aceptados:**
+MercadoPago envía varios parámetros en la URL, este endpoint acepta cualquiera de:
+- \`payment_id\`: ID del pago en MercadoPago
+- \`collection_id\`: ID de la colección (generalmente igual al payment_id)
+- \`external_reference\`: Tu booking ID
+- \`preference_id\`: ID de la preferencia de pago
+
+**Búsqueda inteligente:**
+El endpoint busca el pago en tu base de datos usando cualquiera de estos parámetros,
+intentando todas las combinaciones posibles.
+
+**Ejemplo de URL de retorno:**
+\`\`\`
+/profesionales/xxx/pago/exito?
+  payment_id=129194085837&
+  status=approved&
+  external_reference=cmgpcf29u0001zl01gapokal7&
+  preference_id=2642663435-78e7c1b1-32de-4dc2-984f-3218eb8199a8
+\`\`\`
+
+**Respuesta:**
+Devuelve toda la información del pago, incluyendo booking y estado actual.`,
+  })
+  @ApiQuery({
+    name: 'payment_id',
+    required: false,
+    description: 'ID del pago en MercadoPago',
+    example: '129194085837',
+  })
+  @ApiQuery({
+    name: 'collection_id',
+    required: false,
+    description: 'ID de la colección',
+    example: '129194085837',
+  })
+  @ApiQuery({
+    name: 'external_reference',
+    required: false,
+    description: 'Referencia externa (booking ID)',
+    example: 'cmgpcf29u0001zl01gapokal7',
+  })
+  @ApiQuery({
+    name: 'preference_id',
+    required: false,
+    description: 'ID de la preferencia de pago',
+    example: '2642663435-78e7c1b1-32de-4dc2-984f-3218eb8199a8',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description: 'Estado del pago (informativo, no se usa para búsqueda)',
+    example: 'approved',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Información del pago encontrada',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        data: {
+          type: 'object',
+          properties: {
+            payment: { type: 'object', description: 'Información completa del pago' },
+            booking: { type: 'object', description: 'Información de la reserva' },
+            status: { type: 'string', example: 'COMPLETED' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Pago no encontrado o parámetros inválidos',
+  })
+  async getPaymentStatus(@Query() query: MercadoPagoReturnDto) {
+    this.logger.log(`🔍 Getting payment status from MP return URL`, query);
+
+    try {
+      const payment = await this._paymentsService.getPaymentByMPParams({
+        payment_id: query.payment_id,
+        collection_id: query.collection_id,
+        external_reference: query.external_reference,
+        preference_id: query.preference_id,
+      });
+
+      return {
+        success: true,
+        data: {
+          payment: {
+            id: payment.id,
+            status: payment.status,
+            amount: payment.amount,
+            currency: payment.currency,
+            paymentId: payment.paymentId,
+            preferenceId: payment.preferenceId,
+            paidAt: payment.paidAt,
+            createdAt: payment.createdAt,
+          },
+          booking: payment.booking
+            ? {
+                id: payment.booking.id,
+                scheduledAt: payment.booking.scheduledAt,
+                duration: payment.booking.duration,
+                status: payment.booking.status,
+                jitsiRoom: payment.booking.jitsiRoom,
+                meetingStatus: payment.booking.meetingStatus,
+                professional: payment.booking.professional,
+                client: payment.booking.client,
+              }
+            : null,
+        },
+      };
+    } catch (error) {
+      this.logger.error('❌ Error getting payment status', error);
+      throw new BadRequestException(error instanceof Error ? error.message : 'Payment not found');
+    }
+  }
+
   // ===== RUTAS PARAMÉTRICAS AL FINAL =====
 
   @Get('payment/:id')
   @ApiOperation({
     summary: 'Obtener información de un pago',
     description: `Obtiene los detalles completos de un pago por su ID.
+
+**Búsqueda flexible:**
+- Puede buscar por CUID (ID interno de la base de datos)
+- O por Payment ID de MercadoPago (ej: 129765903116)
+- O por Gateway Payment ID
 
 **Información incluida:**
 - Estado del pago
@@ -760,8 +897,8 @@ En modo PRODUCCIÓN, retorna una clave que comienza con \`APP_USR-\`.`,
   })
   @ApiParam({
     name: 'id',
-    description: 'ID del pago (CUID)',
-    example: 'clx1a2b3c4d5e6f7g8h9i0j1k',
+    description: 'ID del pago (CUID) o Payment ID de MercadoPago',
+    example: 'clx1a2b3c4d5e6f7g8h9i0j1k o 129765903116',
   })
   @ApiResponse({
     status: 200,
