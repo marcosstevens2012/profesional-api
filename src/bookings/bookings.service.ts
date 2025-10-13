@@ -3,17 +3,17 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-} from "@nestjs/common";
-import { BookingStatus, MeetingStatus } from "@prisma/client";
-import { v4 as uuidv4 } from "uuid";
-import { PrismaService } from "../database/prisma.service";
-import { MercadoPagoService } from "../payments/mercadopago.service";
+} from '@nestjs/common';
+import { BookingStatus, MeetingStatus } from '@prisma/client';
+import { v4 as uuidv4 } from 'uuid';
+import { PrismaService } from '../database/prisma.service';
+import { MercadoPagoService } from '../payments/mercadopago.service';
 
 @Injectable()
 export class BookingsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mercadoPagoService: MercadoPagoService
+    private readonly mercadoPagoService: MercadoPagoService,
   ) {}
 
   async create(createBookingDto: any) {
@@ -24,10 +24,10 @@ export class BookingsService {
     });
 
     if (!professional) {
-      throw new NotFoundException("Professional not found");
+      throw new NotFoundException('Professional not found');
     }
 
-    const jitsiRoom = `${professional.id.slice(-8)}-${uuidv4().split("-")[0]}`;
+    const jitsiRoom = `${professional.id.slice(-8)}-${uuidv4().split('-')[0]}`;
 
     const booking = await this.prisma.booking.create({
       data: {
@@ -80,7 +80,7 @@ export class BookingsService {
     });
 
     if (!booking) {
-      throw new NotFoundException("Booking not found");
+      throw new NotFoundException('Booking not found');
     }
 
     return booking;
@@ -104,7 +104,7 @@ export class BookingsService {
     const booking = await this.findOne(bookingId);
 
     if (booking.status !== BookingStatus.PENDING_PAYMENT) {
-      throw new BadRequestException("Booking is not in pending payment state");
+      throw new BadRequestException('Booking is not in pending payment state');
     }
 
     const updatedBooking = await this.prisma.booking.update({
@@ -139,25 +139,20 @@ export class BookingsService {
 
     // Verificar que el profesional es el correcto
     if (booking.professional.user?.id !== professionalUserId) {
-      throw new ForbiddenException("Not authorized to accept this meeting");
+      throw new ForbiddenException('Not authorized to accept this meeting');
     }
 
     if (booking.meetingStatus !== MeetingStatus.WAITING) {
-      throw new BadRequestException("Meeting is not waiting for acceptance");
+      throw new BadRequestException('Meeting is not waiting for acceptance');
     }
 
     // Verificar que el profesional no tenga más de 1 reunión activa + 1 en cola
     const professionalActiveMeetings = await this.getProfessionalActiveMeetings(
-      booking.professionalId
+      booking.professionalId,
     );
 
-    if (
-      professionalActiveMeetings.active >= 1 &&
-      professionalActiveMeetings.waiting >= 1
-    ) {
-      throw new BadRequestException(
-        "Professional already has maximum meetings"
-      );
+    if (professionalActiveMeetings.active >= 1 && professionalActiveMeetings.waiting >= 1) {
+      throw new BadRequestException('Professional already has maximum meetings');
     }
 
     const now = new Date();
@@ -183,7 +178,7 @@ export class BookingsService {
       () => {
         this.endMeetingAutomatically(bookingId);
       },
-      18 * 60 * 1000
+      18 * 60 * 1000,
     );
 
     return updatedBooking;
@@ -213,17 +208,17 @@ export class BookingsService {
     const isProfessional = booking.professional.user?.id === userId;
 
     if (!isClient && !isProfessional) {
-      throw new ForbiddenException("Not authorized to join this meeting");
+      throw new ForbiddenException('Not authorized to join this meeting');
     }
 
     if (booking.meetingStatus !== MeetingStatus.ACTIVE) {
-      throw new BadRequestException("Meeting is not active");
+      throw new BadRequestException('Meeting is not active');
     }
 
     return {
       canJoin: true,
       jitsiRoom: booking.jitsiRoom,
-      role: isClient ? "client" : "professional",
+      role: isClient ? 'client' : 'professional',
     };
   }
 
@@ -242,10 +237,7 @@ export class BookingsService {
         },
       });
     } catch (error) {
-      console.error(
-        `Error ending meeting automatically for booking ${bookingId}:`,
-        error
-      );
+      console.error(`Error ending meeting automatically for booking ${bookingId}:`, error);
     }
   }
 
@@ -288,14 +280,13 @@ export class BookingsService {
 
   async getProfessionalPendingMeetings(professionalUserId: string) {
     // Primero obtenemos el professionalProfile basado en userId
-    const professionalProfile =
-      await this.prisma.professionalProfile.findUnique({
-        where: { userId: professionalUserId },
-        select: { id: true },
-      });
+    const professionalProfile = await this.prisma.professionalProfile.findUnique({
+      where: { userId: professionalUserId },
+      select: { id: true },
+    });
 
     if (!professionalProfile) {
-      throw new NotFoundException("Professional profile not found");
+      throw new NotFoundException('Professional profile not found');
     }
 
     // Obtener reuniones pendientes y en espera para este profesional
@@ -317,7 +308,7 @@ export class BookingsService {
         },
       },
       orderBy: {
-        createdAt: "asc", // Más antiguas primero
+        createdAt: 'asc', // Más antiguas primero
       },
     });
 
@@ -351,22 +342,22 @@ export class BookingsService {
     });
 
     if (!booking) {
-      throw new NotFoundException("Reserva no encontrada");
+      throw new NotFoundException('Reserva no encontrada');
     }
 
     if (booking.clientId !== clientId) {
-      throw new ForbiddenException("No tienes permiso para pagar esta reserva");
+      throw new ForbiddenException('No tienes permiso para pagar esta reserva');
     }
 
     if (booking.status !== BookingStatus.PENDING_PAYMENT) {
       throw new BadRequestException(
-        `Esta reserva ya no está pendiente de pago (estado actual: ${booking.status})`
+        `Esta reserva ya no está pendiente de pago (estado actual: ${booking.status})`,
       );
     }
 
     // 2. Verificar que no exista ya un pago para esta booking
     if (booking.paymentId) {
-      throw new BadRequestException("Ya existe un pago para esta reserva");
+      throw new BadRequestException('Ya existe un pago para esta reserva');
     }
 
     // 3. Obtener precio del profesional
@@ -380,7 +371,7 @@ export class BookingsService {
           description: `Consulta profesional - ${booking.scheduledAt.toLocaleDateString()}`,
           quantity: 1,
           unit_price: amount.toNumber(),
-          currency_id: "ARS",
+          currency_id: 'ARS',
         },
       ],
       external_reference: bookingId, // Vinculamos el bookingId
@@ -393,7 +384,7 @@ export class BookingsService {
         failure: `${process.env.FRONTEND_URL}/bookings/${bookingId}/failure`,
         pending: `${process.env.FRONTEND_URL}/bookings/${bookingId}/pending`,
       },
-      auto_return: "approved",
+      auto_return: 'approved',
       notification_url: `${process.env.APP_URL}/api/payments/webhook`,
       metadata: {
         bookingId,
@@ -407,7 +398,7 @@ export class BookingsService {
       data: {
         amount: amount,
         netAmount: amount, // Por ahora sin comisión
-        status: "PENDING",
+        status: 'PENDING',
         preferenceId: preference.id,
         paymentId: null, // Se actualizará cuando MP envíe el webhook
         gatewayPaymentId: null,

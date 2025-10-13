@@ -19,7 +19,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
-import { CreatePreferenceDto } from './dto/create-preference.dto';
+import { CreatePreferenceDto, CreateSimplePreferenceDto } from './dto/create-preference.dto';
 import { TestCardDto, WebhookNotificationDto } from './dto/webhook.dto';
 import { MercadoPagoService } from './mercadopago.service';
 import { PaymentsService } from './payments.service';
@@ -332,6 +332,121 @@ export class PaymentsController {
 
       // Provide user-friendly error messages
       throw new BadRequestException(`Error creating preference: ${errorMessage}`);
+    }
+  }
+
+  @Post('mp/simple-preference')
+  @Public()
+  @ApiOperation({
+    summary: '🧪 TESTING: Crear booking + preferencia SIMPLE (sin split payments)',
+    description: `Endpoint temporal para testing. Crea automáticamente el booking y la preferencia de pago.
+    
+**Diferencias con /mp/preference:**
+- ✅ Crea el booking automáticamente
+- ❌ NO usa split_payments (todo el dinero va a tu cuenta)
+- ❌ NO calcula comisiones de plataforma
+- ✅ Funciona mejor con tarjetas de prueba en sandbox
+- ✅ Más permisivo con métodos de pago
+
+**USAR SOLO PARA TESTING**`,
+  })
+  @ApiBody({
+    type: CreateSimplePreferenceDto,
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Booking y preferencia creados exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        booking_id: { type: 'string', example: 'clxxx123...' },
+        preference_id: { type: 'string', example: '12345-abc-67890' },
+        init_point: { type: 'string', example: 'https://sandbox.mercadopago.com.ar/checkout/...' },
+        sandbox_init_point: {
+          type: 'string',
+          example: 'https://sandbox.mercadopago.com.ar/checkout/...',
+        },
+        payment_id: { type: 'string', example: 'pay_abc123' },
+        amount: { type: 'number', example: 45000 },
+        mode: { type: 'string', example: 'simple_test' },
+        booking_details: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            scheduledAt: { type: 'string' },
+            duration: { type: 'number' },
+            status: { type: 'string' },
+            jitsiRoom: { type: 'string' },
+          },
+        },
+      },
+    },
+  })
+  async createSimplePreference(@Body() body: CreateSimplePreferenceDto) {
+    try {
+      this.logger.log('🧪 Creating booking + simple preference (testing mode)', {
+        professional_id: body.professionalId,
+        client_id: body.clientId,
+        price: body.price,
+        scheduledAt: body.scheduledAt,
+      });
+
+      // Construir back URLs
+      const baseUrl = process.env.FRONTEND_BASE_URL || 'http://localhost:3000';
+      const slug = body.professionalSlug;
+
+      const backUrls = {
+        success: `${baseUrl}/profesionales/${slug}/pago/exito`,
+        failure: `${baseUrl}/profesionales/${slug}/pago/error`,
+        pending: `${baseUrl}/profesionales/${slug}/pago/pendiente`,
+      };
+
+      // Crear booking + preferencia simple
+      const result = await this._paymentsService.createSimplePreference({
+        clientId: body.clientId,
+        professionalId: body.professionalId,
+        scheduledAt: body.scheduledAt,
+        duration: body.duration,
+        price: body.price,
+        notes: body.notes,
+        title: body.title,
+        description: body.description || body.title,
+        payerEmail: body.payerEmail,
+        backUrls,
+      });
+
+      const isSandbox = this.isSandboxEnvironment();
+      const paymentUrl = isSandbox ? result.sandbox_init_point : result.init_point;
+
+      this.logger.log('✅ Booking + simple preference created successfully', {
+        booking_id: result.booking_id,
+        preference_id: result.id,
+        payment_id: result.payment_id,
+        is_sandbox: isSandbox,
+      });
+
+      return {
+        success: true,
+        booking_id: result.booking_id,
+        preference_id: result.id,
+        init_point: paymentUrl,
+        sandbox_init_point: result.sandbox_init_point,
+        payment_id: result.payment_id,
+        amount: result.amount,
+        mode: 'simple_test',
+        booking_details: result.booking_details,
+        warning: '⚠️  Este es un endpoint de testing - NO usa split payments',
+        metadata: {
+          is_sandbox: isSandbox,
+          back_urls: backUrls,
+        },
+      };
+    } catch (error) {
+      this.logger.error('❌ Error creating booking + simple preference', error);
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Error creating booking + simple preference',
+      );
     }
   }
 

@@ -354,6 +354,201 @@ export class PaymentsService {
   }
 
   /**
+   * TESTING ONLY: Crear booking + payment + preferencia SIMPLE sin split payments
+   * Usar SOLO para testing en sandbox cuando split_payments falla
+   */
+  async createSimplePreference(request: {
+    clientId: string;
+    professionalId: string;
+    scheduledAt: string;
+    duration?: number;
+    price: number;
+    notes?: string;
+    title: string;
+    description: string;
+    payerEmail?: string;
+    backUrls?: {
+      success: string;
+      failure: string;
+      pending: string;
+    };
+  }) {
+    this.logger.log('🧪 Creating booking + simple preference (NO split payments)', {
+      professional_id: request.professionalId,
+      client_id: request.clientId,
+      price: request.price,
+    });
+
+    try {
+      // PASO 1: Verificar que el profesional existe
+      const professional = await this._prisma.professionalProfile.findUnique({
+        where: { id: request.professionalId },
+        select: {
+          id: true,
+          name: true,
+          pricePerSession: true,
+          isActive: true,
+        },
+      });
+
+      if (!professional) {
+        throw new BadRequestException(`Professional ${request.professionalId} not found`);
+      }
+
+      if (!professional.isActive) {
+        throw new BadRequestException(`Professional ${request.professionalId} is not active`);
+      }
+
+      // PASO 2: Verificar que el cliente existe
+      const client = await this._prisma.user.findUnique({
+        where: { id: request.clientId },
+        select: { id: true, email: true, name: true },
+      });
+
+      if (!client) {
+        throw new BadRequestException(`Client ${request.clientId} not found`);
+      }
+
+      // PASO 3: Generar jitsiRoom único
+      const { v4: uuidv4 } = await import('uuid');
+      const jitsiRoom = `${professional.id.slice(-8)}-${uuidv4().split('-')[0]}`;
+
+      // PASO 4: Crear el Booking
+      const booking = await this._prisma.booking.create({
+        data: {
+          clientId: request.clientId,
+          professionalId: request.professionalId,
+          scheduledAt: new Date(request.scheduledAt),
+          duration: request.duration || 60,
+          price: request.price,
+          notes: request.notes,
+          status: 'PENDING_PAYMENT',
+          jitsiRoom,
+          meetingStatus: 'PENDING',
+        },
+        include: {
+          client: { select: { id: true, email: true, name: true } },
+          professional: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              user: { select: { email: true } },
+            },
+          },
+        },
+      });
+
+      this.logger.log('✅ Booking created', { booking_id: booking.id });
+
+      // PASO 5: Crear Payment record SIN split
+      const payment = await this._prisma.payment.create({
+        data: {
+          amount: request.price,
+          netAmount: request.price, // Todo el monto (sin comisión por ahora)
+          platformFee: 0, // Sin comisión en modo testing
+          currency: 'ARS',
+          status: PaymentStatus.PENDING,
+          payerEmail: request.payerEmail || client.email,
+          metadata: {
+            type: 'simple_test',
+            bookingId: booking.id,
+            clientId: client.id,
+            professionalId: professional.id,
+            note: 'Simple preference without split payments - for testing only',
+          },
+        },
+      });
+
+      this.logger.log('✅ Payment record created', { payment_id: payment.id });
+
+      // PASO 6: Vincular payment con booking
+      await this._prisma.booking.update({
+        where: { id: booking.id },
+        data: { paymentId: payment.id },
+      });
+
+      // PASO 7: Crear preferencia de MercadoPago
+      const mpPreference = {
+        items: [
+          {
+            title: request.title,
+            quantity: 1,
+            unit_price: request.price,
+            description: request.description,
+          },
+        ],
+        external_reference: booking.id, // Usar booking.id como referencia
+        back_urls: request.backUrls,
+        auto_return: 'approved',
+        notification_url: `${process.env.APP_URL}/api/payments/webhook`,
+
+        // Configuración permisiva para sandbox
+        payment_methods: {
+          installments: 12,
+          default_installments: 1,
+          // NO excluir nada para máxima compatibilidad
+        },
+
+        // Datos del pagador
+        payer: {
+          email: request.payerEmail || client.email || 'test_user@test.com',
+          name: client.name?.split(' ')[0] || 'Test',
+          surname: client.name?.split(' ')[1] || 'User',
+          identification: {
+            type: 'DNI',
+            number: '12345678',
+          },
+        },
+
+        statement_descriptor: 'PROFESIONAL',
+      };
+
+      const mpResponse = await this._mercadoPagoService.createPreference(mpPreference);
+
+      // PASO 8: Actualizar payment con preferenceId
+      await this._prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          preferenceId: mpResponse.id,
+        },
+      });
+
+      this.logger.log('✅ Simple preference created successfully', {
+        booking_id: booking.id,
+        payment_id: payment.id,
+        preference_id: mpResponse.id,
+        init_point: mpResponse.init_point,
+      });
+
+      return {
+        id: mpResponse.id,
+        init_point: mpResponse.init_point,
+        sandbox_init_point: mpResponse.sandbox_init_point,
+        external_reference: booking.id,
+        booking_id: booking.id,
+        payment_id: payment.id,
+        amount: request.price,
+        booking_details: {
+          id: booking.id,
+          scheduledAt: booking.scheduledAt,
+          duration: booking.duration,
+          jitsiRoom: booking.jitsiRoom,
+          status: booking.status,
+          client: booking.client,
+          professional: {
+            id: booking.professional.id,
+            name: booking.professional.name,
+          },
+        },
+      };
+    } catch (error) {
+      this.logger.error('❌ Error creating simple preference with booking', error);
+      throw error;
+    }
+  }
+
+  /**
    * STEP 2: Crear preferencia de marketplace con split payments
    */
   async createMarketplacePreference(
