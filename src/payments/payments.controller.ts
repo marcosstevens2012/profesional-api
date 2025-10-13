@@ -208,6 +208,14 @@ export class PaymentsController {
           email: string;
           name: string;
           surname: string;
+          identification?: {
+            type: string;
+            number: string;
+          };
+          phone?: {
+            area_code: string;
+            number: number;
+          };
         };
         statement_descriptor: string;
         auto_return?: string;
@@ -250,9 +258,19 @@ export class PaymentsController {
 
         // Información del pagador (recomendado para mejorar tasa de aprobación)
         payer: {
-          email: body.payerEmail || 'test_user@test.com',
+          email: body.payerEmail || 'test_user_123456@testuser.com',
           name: body.payerName || 'Test',
           surname: body.payerSurname || 'User',
+          // Agregar identificación ayuda en sandbox
+          identification: {
+            type: 'DNI',
+            number: '12345678',
+          },
+          // Agregar teléfono también ayuda
+          phone: {
+            area_code: '11',
+            number: 12345678,
+          },
         },
 
         // Statement descriptor (aparece en extracto bancario - máx 11 caracteres)
@@ -467,6 +485,55 @@ export class PaymentsController {
           ? '⚠️  En localhost - Usuario debe hacer clic en "Volver al sitio" después del pago'
           : '✅ En producción - Redirección automática habilitada',
       },
+    };
+  }
+
+  @Public()
+  @Get('public-key')
+  @ApiOperation({
+    summary: 'Obtener Public Key de MercadoPago',
+    description: `Retorna la Public Key de MercadoPago para usar en el frontend.
+
+**Uso en el frontend:**
+\`\`\`javascript
+const response = await fetch('/payments/public-key');
+const { public_key } = await response.json();
+
+const mp = new MercadoPago(public_key, {
+  locale: 'es-AR'
+});
+\`\`\`
+
+**IMPORTANTE:** Esta clave se usa para tokenizar tarjetas en el frontend.
+En modo TEST, retorna una clave que comienza con \`TEST-\`.
+En modo PRODUCCIÓN, retorna una clave que comienza con \`APP_USR-\`.`,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Public Key de MercadoPago',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        public_key: { type: 'string', example: 'TEST-abb3838e-1ccd-4718-896d-bb4232e9aba2' },
+        is_sandbox: { type: 'boolean', example: true },
+        environment: {
+          type: 'string',
+          example: 'sandbox',
+          enum: ['sandbox', 'production'],
+        },
+      },
+    },
+  })
+  async getPublicKey() {
+    const publicKey = process.env.MERCADOPAGO_PUBLIC_KEY || '';
+    const isSandbox = this.isSandboxEnvironment();
+
+    return {
+      success: true,
+      public_key: publicKey,
+      is_sandbox: isSandbox,
+      environment: isSandbox ? 'sandbox' : 'production',
     };
   }
 
