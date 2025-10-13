@@ -144,7 +144,7 @@ export class PaymentsService {
         // Guardar evento fallido para debugging
         await this._prisma.paymentEvent.create({
           data: {
-            paymentId: `no-data-${Date.now()}`,
+            paymentId: null, // No tenemos Payment asociado
             externalId: data.id ? String(data.id) : null,
             type: data.type || 'unknown',
             rawPayload: JSON.parse(JSON.stringify(data)),
@@ -156,10 +156,10 @@ export class PaymentsService {
         return { received: true, processed: false, reason: 'No data from MP API' };
       }
 
-      // Guardar evento de webhook
-      await this._prisma.paymentEvent.create({
+      // Guardar evento de webhook (sin paymentId por ahora)
+      const webhookEvent = await this._prisma.paymentEvent.create({
         data: {
-          paymentId: `temp-${Date.now()}`, // Temporal hasta encontrar el payment real
+          paymentId: null, // Lo actualizaremos cuando encontremos el Payment
           externalId: data.id ? String(data.id) : null,
           type: data.type,
           rawPayload: JSON.parse(JSON.stringify(data)),
@@ -175,7 +175,7 @@ export class PaymentsService {
         typeof processedData === 'object' &&
         'status' in processedData
       ) {
-        await this.processPaymentNotification(processedData as MPPaymentResponse);
+        await this.processPaymentNotification(processedData as MPPaymentResponse, webhookEvent.id);
       } else if (
         data.type === 'merchant_order' &&
         processedData &&
@@ -204,7 +204,7 @@ export class PaymentsService {
       // Guardar error para debugging
       await this._prisma.paymentEvent.create({
         data: {
-          paymentId: `error-${Date.now()}`,
+          paymentId: null, // No tenemos Payment asociado en caso de error
           externalId: data.id ? String(data.id) : null,
           type: data.type || 'webhook_error',
           rawPayload: JSON.parse(JSON.stringify(data)),
@@ -222,7 +222,10 @@ export class PaymentsService {
     }
   }
 
-  private async processPaymentNotification(mpPayment: MPPaymentResponse) {
+  private async processPaymentNotification(
+    mpPayment: MPPaymentResponse,
+    webhookEventId?: string,
+  ) {
     this.logger.log('💰 Processing payment notification', {
       payment_id: mpPayment.id,
       status: mpPayment.status,
@@ -260,6 +263,18 @@ export class PaymentsService {
       });
 
       const payment = booking.payment;
+
+      // Actualizar el webhookEvent con el paymentId correcto
+      if (webhookEventId) {
+        await this._prisma.paymentEvent.update({
+          where: { id: webhookEventId },
+          data: { paymentId: payment.id },
+        });
+        this.logger.debug('✅ WebhookEvent updated with correct paymentId', {
+          webhookEventId,
+          paymentId: payment.id,
+        });
+      }
 
       // Mapear status de MP a nuestros status
       let newStatus: PaymentStatus;

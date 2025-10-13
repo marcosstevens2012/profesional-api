@@ -300,7 +300,7 @@ model Payment {
 
 model PaymentEvent {
   id             String   @id @default(cuid())
-  paymentId      String
+  paymentId      String? // Optional: puede que no exista el Payment cuando llega el webhook
   externalId     String? // ID del evento externo (MP)
   type           String // webhook type
   status         String? // Status del evento
@@ -310,7 +310,7 @@ model PaymentEvent {
   processedAt    DateTime @default(now())
   createdAt      DateTime @default(now())
 
-  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@index([paymentId])
   @@index([externalId])
