@@ -3,7 +3,7 @@ export interface UploadToken {
   key: string;
   fields?: Record<string, string>;
   headers?: Record<string, string>;
-  method?: "PUT" | "POST";
+  method?: 'PUT' | 'POST';
   expiresAt?: Date;
 }
 
@@ -38,7 +38,7 @@ export abstract class StorageProvider {
       contentType: string;
       maxSize: number;
       expiresIn?: number;
-    }
+    },
   ): Promise<UploadToken>;
 
   /**
@@ -49,7 +49,7 @@ export abstract class StorageProvider {
     _options?: {
       expiresIn?: number;
       filename?: string;
-    }
+    },
   ): Promise<SignedDownloadUrl>;
 
   /**

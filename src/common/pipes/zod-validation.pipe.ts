@@ -1,9 +1,5 @@
-import {
-  ArgumentMetadata,
-  BadRequestException,
-  PipeTransform,
-} from "@nestjs/common";
-import { ZodError, ZodSchema } from "zod";
+import { ArgumentMetadata, BadRequestException, PipeTransform } from '@nestjs/common';
+import { ZodError, ZodSchema } from 'zod';
 
 export class ZodValidationPipe implements PipeTransform {
   constructor(private _schema: ZodSchema) {}
@@ -14,15 +10,13 @@ export class ZodValidationPipe implements PipeTransform {
       return parsedValue;
     } catch (error) {
       if (error instanceof ZodError) {
-        const errorMessages = error.errors.map(
-          err => `${err.path.join(".")}: ${err.message}`
-        );
+        const errorMessages = error.errors.map((err) => `${err.path.join('.')}: ${err.message}`);
         throw new BadRequestException({
-          message: "Validation failed",
+          message: 'Validation failed',
           errors: errorMessages,
         });
       }
-      throw new BadRequestException("Validation failed");
+      throw new BadRequestException('Validation failed');
     }
   }
 }

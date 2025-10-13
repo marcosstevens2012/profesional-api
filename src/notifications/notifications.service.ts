@@ -1,6 +1,6 @@
-import { Injectable } from "@nestjs/common";
-import { NotificationType } from "@prisma/client";
-import { PrismaService } from "../database/prisma.service";
+import { Injectable } from '@nestjs/common';
+import { NotificationType } from '@prisma/client';
+import { PrismaService } from '../database/prisma.service';
 
 @Injectable()
 export class NotificationsService {
@@ -12,7 +12,7 @@ export class NotificationsService {
   async getUserNotifications(userId: string, limit = 50) {
     return this.prisma.notification.findMany({
       where: { userId },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
       take: limit,
     });
   }
@@ -26,7 +26,7 @@ export class NotificationsService {
         userId,
         readAt: null,
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -54,7 +54,7 @@ export class NotificationsService {
     });
 
     if (!notification) {
-      throw new Error("Notification not found");
+      throw new Error('Notification not found');
     }
 
     return this.prisma.notification.update({
@@ -105,7 +105,7 @@ export class NotificationsService {
     });
 
     if (!notification) {
-      throw new Error("Notification not found");
+      throw new Error('Notification not found');
     }
 
     return this.prisma.notification.delete({

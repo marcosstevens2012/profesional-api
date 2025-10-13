@@ -1,11 +1,11 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { Profile } from "@prisma/client";
-import { PrismaService } from "../database/prisma.service";
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Profile } from '@prisma/client';
+import { PrismaService } from '../database/prisma.service';
 import {
   ConfigureMercadoPagoDto,
   MercadoPagoConfigResponse,
-} from "./dto/configure-mercadopago.dto";
-import { UpdateProfileDto } from "./dto/update-profile.dto";
+} from './dto/configure-mercadopago.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class ProfilesService {
@@ -15,7 +15,7 @@ export class ProfilesService {
     // This would be for creating professional profiles
     // For now, return a mock implementation
     return {
-      message: "Profile creation not implemented yet",
+      message: 'Profile creation not implemented yet',
       data: createProfileDto,
     };
   }
@@ -36,22 +36,19 @@ export class ProfilesService {
     });
 
     if (!profile) {
-      throw new NotFoundException("Profile not found for this user");
+      throw new NotFoundException('Profile not found for this user');
     }
 
     return profile;
   }
 
-  async updateMyProfile(
-    userId: string,
-    updateProfileDto: UpdateProfileDto
-  ): Promise<Profile> {
+  async updateMyProfile(userId: string, updateProfileDto: UpdateProfileDto): Promise<Profile> {
     const profile = await this._prisma.profile.findUnique({
       where: { userId },
     });
 
     if (!profile) {
-      throw new NotFoundException("Profile not found for this user");
+      throw new NotFoundException('Profile not found for this user');
     }
 
     return this._prisma.profile.update({
@@ -64,16 +61,16 @@ export class ProfilesService {
     const page = parseInt(query.page) || 1;
     const limit = parseInt(query.limit) || 12;
     const skip = (page - 1) * limit;
-    const sortBy = query.sortBy || "createdAt";
+    const sortBy = query.sortBy || 'createdAt';
 
     // Construir ordenamiento
-    let orderBy: any = { createdAt: "desc" };
-    if (sortBy === "rating") {
-      orderBy = { rating: "desc" };
-    } else if (sortBy === "name") {
-      orderBy = { name: "asc" };
-    } else if (sortBy === "price") {
-      orderBy = { pricePerSession: "asc" };
+    let orderBy: any = { createdAt: 'desc' };
+    if (sortBy === 'rating') {
+      orderBy = { rating: 'desc' };
+    } else if (sortBy === 'name') {
+      orderBy = { name: 'asc' };
+    } else if (sortBy === 'price') {
+      orderBy = { pricePerSession: 'asc' };
     }
 
     const [allProfiles, _total] = await Promise.all([
@@ -82,7 +79,7 @@ export class ProfilesService {
           deletedAt: null,
           isActive: true,
           user: {
-            status: "ACTIVE",
+            status: 'ACTIVE',
             deletedAt: null,
           },
         },
@@ -132,7 +129,7 @@ export class ProfilesService {
                 },
               },
             },
-            orderBy: { createdAt: "desc" },
+            orderBy: { createdAt: 'desc' },
             take: 5,
           },
           // Incluir bookings activos para verificar disponibilidad
@@ -142,7 +139,7 @@ export class ProfilesService {
               meetingStatus: true,
             },
             where: {
-              OR: [{ meetingStatus: "ACTIVE" }, { meetingStatus: "WAITING" }],
+              OR: [{ meetingStatus: 'ACTIVE' }, { meetingStatus: 'WAITING' }],
             },
           },
         },
@@ -153,7 +150,7 @@ export class ProfilesService {
           deletedAt: null,
           isActive: true,
           user: {
-            status: "ACTIVE",
+            status: 'ACTIVE',
             deletedAt: null,
           },
         },
@@ -161,12 +158,11 @@ export class ProfilesService {
     ]);
 
     // Filtrar profesionales disponibles (máximo 1 activa + 1 en espera)
-    const availableProfiles = allProfiles.filter(profile => {
+    const availableProfiles = allProfiles.filter((profile) => {
       const activeMeetings =
-        profile.bookings?.filter(b => b.meetingStatus === "ACTIVE").length || 0;
+        profile.bookings?.filter((b) => b.meetingStatus === 'ACTIVE').length || 0;
       const waitingMeetings =
-        profile.bookings?.filter(b => b.meetingStatus === "WAITING").length ||
-        0;
+        profile.bookings?.filter((b) => b.meetingStatus === 'WAITING').length || 0;
 
       // Profesional disponible si no tiene 1 activa Y 1 en espera simultáneamente
       return !(activeMeetings >= 1 && waitingMeetings >= 1);
@@ -176,11 +172,9 @@ export class ProfilesService {
     const paginatedProfiles = availableProfiles.slice(skip, skip + limit);
 
     // Transform the data to format location as string
-    const transformedProfiles = paginatedProfiles.map(profile => ({
+    const transformedProfiles = paginatedProfiles.map((profile) => ({
       ...profile,
-      location: profile.location
-        ? `${profile.location.city}, ${profile.location.province}`
-        : null,
+      location: profile.location ? `${profile.location.city}, ${profile.location.province}` : null,
       // No exponer los bookings internos al frontend
       bookings: undefined,
     }));
@@ -205,7 +199,7 @@ export class ProfilesService {
         isActive: true,
         deletedAt: null,
         user: {
-          status: "ACTIVE",
+          status: 'ACTIVE',
           deletedAt: null,
         },
       },
@@ -255,7 +249,7 @@ export class ProfilesService {
               },
             },
           },
-          orderBy: { createdAt: "desc" },
+          orderBy: { createdAt: 'desc' },
           take: 10,
         },
       },
@@ -268,9 +262,7 @@ export class ProfilesService {
     // Transform location to string format
     return {
       ...profile,
-      location: profile.location
-        ? `${profile.location.city}, ${profile.location.province}`
-        : null,
+      location: profile.location ? `${profile.location.city}, ${profile.location.province}` : null,
     };
   }
 
@@ -323,21 +315,19 @@ export class ProfilesService {
               },
             },
           },
-          orderBy: { createdAt: "desc" },
+          orderBy: { createdAt: 'desc' },
         },
       },
     });
 
     if (!profile) {
-      throw new NotFoundException("Professional profile not found");
+      throw new NotFoundException('Professional profile not found');
     }
 
     // Transform location to string format
     return {
       ...profile,
-      location: profile.location
-        ? `${profile.location.city}, ${profile.location.province}`
-        : null,
+      location: profile.location ? `${profile.location.city}, ${profile.location.province}` : null,
     };
   }
 
@@ -347,7 +337,7 @@ export class ProfilesService {
     });
 
     if (!profile) {
-      throw new NotFoundException("Profile not found");
+      throw new NotFoundException('Profile not found');
     }
 
     return this._prisma.profile.update({
@@ -362,7 +352,7 @@ export class ProfilesService {
     });
 
     if (!profile) {
-      throw new NotFoundException("Profile not found");
+      throw new NotFoundException('Profile not found');
     }
 
     await this._prisma.profile.delete({
@@ -372,18 +362,15 @@ export class ProfilesService {
 
   async toggleProfessionalActiveStatus(userId: string): Promise<any> {
     // Buscar el perfil profesional del usuario
-    const professionalProfile =
-      await this._prisma.professionalProfile.findFirst({
-        where: {
-          userId,
-          deletedAt: null,
-        },
-      });
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: {
+        userId,
+        deletedAt: null,
+      },
+    });
 
     if (!professionalProfile) {
-      throw new NotFoundException(
-        "Professional profile not found for this user"
-      );
+      throw new NotFoundException('Professional profile not found for this user');
     }
 
     // Cambiar el estado activo
@@ -394,28 +381,23 @@ export class ProfilesService {
 
     return {
       message: `Professional profile ${
-        updatedProfile.isActive ? "activated" : "deactivated"
+        updatedProfile.isActive ? 'activated' : 'deactivated'
       } successfully`,
       isActive: updatedProfile.isActive,
     };
   }
 
-  async getProfessionalActiveStatus(
-    userId: string
-  ): Promise<{ isActive: boolean }> {
-    const professionalProfile =
-      await this._prisma.professionalProfile.findFirst({
-        where: {
-          userId,
-          deletedAt: null,
-        },
-        select: { isActive: true },
-      });
+  async getProfessionalActiveStatus(userId: string): Promise<{ isActive: boolean }> {
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: {
+        userId,
+        deletedAt: null,
+      },
+      select: { isActive: true },
+    });
 
     if (!professionalProfile) {
-      throw new NotFoundException(
-        "Professional profile not found for this user"
-      );
+      throw new NotFoundException('Professional profile not found for this user');
     }
 
     return { isActive: professionalProfile.isActive };
@@ -426,17 +408,14 @@ export class ProfilesService {
    */
   async configureMercadoPago(
     userId: string,
-    dto: ConfigureMercadoPagoDto
+    dto: ConfigureMercadoPagoDto,
   ): Promise<MercadoPagoConfigResponse> {
-    const professionalProfile =
-      await this._prisma.professionalProfile.findFirst({
-        where: { userId, deletedAt: null },
-      });
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: { userId, deletedAt: null },
+    });
 
     if (!professionalProfile) {
-      throw new NotFoundException(
-        "Professional profile not found for this user"
-      );
+      throw new NotFoundException('Professional profile not found for this user');
     }
 
     const updated = await this._prisma.professionalProfile.update({
@@ -453,7 +432,7 @@ export class ProfilesService {
       mercadoPagoEmail: updated.mercadoPagoEmail!,
       mercadoPagoUserId: updated.mercadoPagoUserId || undefined,
       configuredAt: updated.mpConfiguredAt!,
-      message: "MercadoPago credentials configured successfully",
+      message: 'MercadoPago credentials configured successfully',
     };
   }
 
@@ -466,20 +445,17 @@ export class ProfilesService {
     mercadoPagoUserId?: string;
     configuredAt?: Date;
   }> {
-    const professionalProfile =
-      await this._prisma.professionalProfile.findFirst({
-        where: { userId, deletedAt: null },
-        select: {
-          mercadoPagoEmail: true,
-          mercadoPagoUserId: true,
-          mpConfiguredAt: true,
-        },
-      });
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: { userId, deletedAt: null },
+      select: {
+        mercadoPagoEmail: true,
+        mercadoPagoUserId: true,
+        mpConfiguredAt: true,
+      },
+    });
 
     if (!professionalProfile) {
-      throw new NotFoundException(
-        "Professional profile not found for this user"
-      );
+      throw new NotFoundException('Professional profile not found for this user');
     }
 
     const isConfigured = !!professionalProfile.mercadoPagoEmail;

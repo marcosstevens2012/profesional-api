@@ -1,15 +1,15 @@
-import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
-import { Reflector } from "@nestjs/core";
-import { ROLES_KEY } from "../decorators/roles.decorator";
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { ROLES_KEY } from '../decorators/roles.decorator';
 
 // eslint-disable-next-line no-unused-vars
 export enum Role {
   // eslint-disable-next-line no-unused-vars
-  ADMIN = "admin",
+  ADMIN = 'admin',
   // eslint-disable-next-line no-unused-vars
-  PROFESSIONAL = "professional",
+  PROFESSIONAL = 'professional',
   // eslint-disable-next-line no-unused-vars
-  CLIENT = "client",
+  CLIENT = 'client',
 }
 
 @Injectable()

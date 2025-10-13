@@ -1,10 +1,10 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class AdminService {
   getDashboard() {
     return {
-      message: "Admin dashboard",
+      message: 'Admin dashboard',
       data: {
         totalUsers: 0,
         totalProfessionals: 0,
@@ -15,7 +15,7 @@ export class AdminService {
   }
 
   getUsers() {
-    return { message: "All users (admin view)", data: [] };
+    return { message: 'All users (admin view)', data: [] };
   }
 
   updateUserStatus(id: string, statusDto: any) {
@@ -24,7 +24,7 @@ export class AdminService {
 
   getReports() {
     return {
-      message: "System reports",
+      message: 'System reports',
       data: {
         userGrowth: [],
         bookingStats: [],

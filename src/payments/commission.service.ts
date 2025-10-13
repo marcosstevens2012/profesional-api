@@ -1,6 +1,6 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { Decimal } from "@prisma/client/runtime/library";
-import { PrismaService } from "../database/prisma.service";
+import { Injectable, Logger } from '@nestjs/common';
+import { Decimal } from '@prisma/client/runtime/library';
+import { PrismaService } from '../database/prisma.service';
 
 @Injectable()
 export class CommissionService {
@@ -26,12 +26,12 @@ export class CommissionService {
         isActive: true,
       },
       orderBy: {
-        createdAt: "asc",
+        createdAt: 'asc',
       },
     });
 
     if (rules.length === 0) {
-      this.logger.warn("No commission rules found");
+      this.logger.warn('No commission rules found');
       return;
     }
 
@@ -39,7 +39,7 @@ export class CommissionService {
     const commissionAmount = payment.amount.mul(rule.percentage).div(100);
 
     this.logger.log(
-      `Commission calculated: ${commissionAmount} (${rule.percentage}%) for payment ${paymentId}`
+      `Commission calculated: ${commissionAmount} (${rule.percentage}%) for payment ${paymentId}`,
     );
 
     // You could store this commission calculation in the payment metadata
@@ -75,21 +75,19 @@ export class CommissionService {
         isActive: true,
       },
       orderBy: {
-        createdAt: "asc",
+        createdAt: 'asc',
       },
     });
 
     if (rules.length === 0) {
-      this.logger.warn("No commission rules found, defaulting to 5%");
+      this.logger.warn('No commission rules found, defaulting to 5%');
       return amount.mul(5).div(100); // Default 5%
     }
 
     const rule = rules[0]; // Take the first active rule
     const platformFee = amount.mul(rule.percentage).div(100);
 
-    this.logger.debug(
-      `Platform fee calculated: ${platformFee} (${rule.percentage}%)`
-    );
+    this.logger.debug(`Platform fee calculated: ${platformFee} (${rule.percentage}%)`);
     return platformFee;
   }
 
@@ -104,7 +102,7 @@ export class CommissionService {
 
     const payments = await this._prisma.payment.findMany({
       where: {
-        status: "APPROVED",
+        status: 'APPROVED',
         ...where,
       },
       select: {
@@ -112,10 +110,7 @@ export class CommissionService {
       },
     });
 
-    const totalAmount = payments.reduce(
-      (sum, payment) => sum.add(payment.fee),
-      new Decimal(0)
-    );
+    const totalAmount = payments.reduce((sum, payment) => sum.add(payment.fee), new Decimal(0));
 
     return {
       totalAmount,

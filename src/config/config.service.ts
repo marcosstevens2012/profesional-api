@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { PrismaService } from "../database/prisma.service";
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../database/prisma.service';
 
 @Injectable()
 export class ConfigService {
@@ -33,7 +33,7 @@ export class ConfigService {
   }
 
   async getConsultationPrice() {
-    const config = await this.getConfigByKey("consultation_price");
+    const config = await this.getConfigByKey('consultation_price');
     return config.value;
   }
 }

@@ -1,15 +1,11 @@
-import {
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-} from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   SignedDownloadUrl,
   StorageMetadata,
   StorageProvider,
   UploadToken,
-} from "./storage.provider";
+} from './storage.provider';
 
 @Injectable()
 export class VercelBlobStorageProvider extends StorageProvider {
@@ -17,30 +13,24 @@ export class VercelBlobStorageProvider extends StorageProvider {
   private readonly token: string;
   private readonly baseUrl: string;
 
-  readonly name = "vercel";
+  readonly name = 'vercel';
   readonly isPublic = true;
 
   constructor(private readonly _configService: ConfigService) {
     super();
 
-    const token = this._configService.get<string>(
-      "VERCEL_BLOB_READ_WRITE_TOKEN"
-    );
+    const token = this._configService.get<string>('VERCEL_BLOB_READ_WRITE_TOKEN');
     if (!token) {
-      throw new Error(
-        "VERCEL_BLOB_READ_WRITE_TOKEN is required for Vercel Blob storage"
-      );
+      throw new Error('VERCEL_BLOB_READ_WRITE_TOKEN is required for Vercel Blob storage');
     }
     this.token = token;
     this.baseUrl = this._configService.get<string>(
-      "BLOB_PUBLIC_BASE_URL",
-      "https://blob.vercel-storage.com"
+      'BLOB_PUBLIC_BASE_URL',
+      'https://blob.vercel-storage.com',
     );
 
     if (!this.token) {
-      throw new Error(
-        "VERCEL_BLOB_READ_WRITE_TOKEN must be configured for Vercel Blob storage"
-      );
+      throw new Error('VERCEL_BLOB_READ_WRITE_TOKEN must be configured for Vercel Blob storage');
     }
   }
 
@@ -50,7 +40,7 @@ export class VercelBlobStorageProvider extends StorageProvider {
       contentType: string;
       maxSize: number;
       expiresIn?: number;
-    }
+    },
   ): Promise<UploadToken> {
     try {
       // Para Vercel Blob, generamos URL directa con token
@@ -59,10 +49,10 @@ export class VercelBlobStorageProvider extends StorageProvider {
       return {
         url: uploadUrl,
         key,
-        method: "POST",
+        method: 'POST',
         headers: {
           Authorization: `Bearer ${this.token}`,
-          "Content-Type": options.contentType,
+          'Content-Type': options.contentType,
         },
         fields: {
           pathname: key,
@@ -71,8 +61,8 @@ export class VercelBlobStorageProvider extends StorageProvider {
         expiresAt: new Date(Date.now() + (options.expiresIn || 3600) * 1000),
       };
     } catch (error) {
-      this.logger.error("Error in generateUploadToken", { error, key });
-      throw new InternalServerErrorException("Failed to generate upload token");
+      this.logger.error('Error in generateUploadToken', { error, key });
+      throw new InternalServerErrorException('Failed to generate upload token');
     }
   }
 
@@ -81,7 +71,7 @@ export class VercelBlobStorageProvider extends StorageProvider {
     _options?: {
       expiresIn?: number;
       filename?: string;
-    }
+    },
   ): Promise<SignedDownloadUrl> {
     // Vercel Blob es público, no necesita URLs firmadas
     // Pero implementamos para mantener la interfaz consistente
@@ -98,10 +88,10 @@ export class VercelBlobStorageProvider extends StorageProvider {
   async deleteFile(key: string): Promise<void> {
     try {
       const response = await fetch(`${this.baseUrl}/delete`, {
-        method: "POST",
+        method: 'POST',
         headers: {
           Authorization: `Bearer ${this.token}`,
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ urls: [this.getPublicUrl(key)] }),
       });
@@ -110,27 +100,27 @@ export class VercelBlobStorageProvider extends StorageProvider {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
     } catch (error) {
-      this.logger.error("Error in deleteFile", { error, key });
-      throw new InternalServerErrorException("Failed to delete file");
+      this.logger.error('Error in deleteFile', { error, key });
+      throw new InternalServerErrorException('Failed to delete file');
     }
   }
 
   async getMetadata(_key: string): Promise<StorageMetadata> {
     // Vercel Blob no tiene API para obtener metadatos fácilmente
     // Esta funcionalidad estaría limitada
-    this.logger.warn("getMetadata not fully supported for Vercel Blob");
+    this.logger.warn('getMetadata not fully supported for Vercel Blob');
     return {
-      contentType: "application/octet-stream",
+      contentType: 'application/octet-stream',
       size: 0,
     };
   }
 
   async exists(key: string): Promise<boolean> {
     try {
-      const response = await fetch(this.getPublicUrl(key), { method: "HEAD" });
+      const response = await fetch(this.getPublicUrl(key), { method: 'HEAD' });
       return response.ok;
     } catch (error) {
-      this.logger.error("Error in exists", { error, key });
+      this.logger.error('Error in exists', { error, key });
       return false;
     }
   }

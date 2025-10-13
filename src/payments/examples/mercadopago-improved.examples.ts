@@ -1,7 +1,7 @@
 // 📚 EJEMPLOS DE USO DE LA INTEGRACIÓN MEJORADA DE MERCADOPAGO
 // Este archivo muestra cómo usar el nuevo método createImprovedPreference
 
-import { MercadoPagoService } from "../mercadopago.service";
+import { MercadoPagoService } from '../mercadopago.service';
 
 // ============================================================================
 // EJEMPLO 1: Preferencia Básica (Mínimo Recomendado)
@@ -11,15 +11,15 @@ async function createBasicPreference(
   professionalSlug: string,
   amount: number,
   userEmail: string,
-  bookingId: string
+  bookingId: string,
 ) {
   const preference = await mercadoPagoService.createImprovedPreference({
     // Item info
     serviceId: `service_${professionalSlug}`,
-    title: "Consulta Profesional",
+    title: 'Consulta Profesional',
     description: `Consulta con ${professionalSlug}`,
     amount: amount,
-    currencyId: "ARS",
+    currencyId: 'ARS',
 
     // Payer (pre-completa el checkout)
     payerEmail: userEmail,
@@ -60,26 +60,26 @@ async function createFullPreference(
     userDNI: string;
     bookingId: string;
     appointmentDate: string;
-  }
+  },
 ) {
   const preference = await mercadoPagoService.createImprovedPreference({
     // Item detallado
     serviceId: `consultation_${data.bookingId}`,
     title: `Consulta con ${data.professionalName}`,
     description: `Consulta profesional online - ${new Date(
-      data.appointmentDate
+      data.appointmentDate,
     ).toLocaleDateString()}`,
     pictureUrl: data.professionalImageUrl,
-    categoryId: "health_services",
+    categoryId: 'health_services',
     amount: data.amount,
-    currencyId: "ARS",
+    currencyId: 'ARS',
 
     // Datos completos del pagador (mejor UX)
     payerEmail: data.userEmail,
     payerName: data.userName,
     payerSurname: data.userSurname,
     payerPhone: data.userPhone,
-    payerIdentificationType: "DNI",
+    payerIdentificationType: 'DNI',
     payerIdentificationNumber: data.userDNI,
 
     // URLs
@@ -99,14 +99,14 @@ async function createFullPreference(
     metadata: {
       booking_id: data.bookingId,
       professional_slug: data.professionalSlug,
-      service_type: "online_consultation",
+      service_type: 'online_consultation',
       appointment_date: data.appointmentDate,
-      platform: "web",
+      platform: 'web',
       created_at: new Date().toISOString(),
     },
 
     // Branding en extracto
-    statementDescriptor: "PROFESIONAL",
+    statementDescriptor: 'PROFESIONAL',
 
     // Expiración (24 horas)
     expirationHours: 24,
@@ -128,7 +128,7 @@ async function createMarketplacePreference(
     platformFeePercentage: number;
     userEmail: string;
     bookingId: string;
-  }
+  },
 ) {
   const platformFee = data.amount * (data.platformFeePercentage / 100);
   const professionalAmount = data.amount - platformFee;
@@ -138,7 +138,7 @@ async function createMarketplacePreference(
     serviceId: `marketplace_${data.bookingId}`,
     title: `Consulta - ${data.professionalName}`,
     amount: data.amount,
-    currencyId: "ARS",
+    currencyId: 'ARS',
 
     // Payer
     payerEmail: data.userEmail,
@@ -152,7 +152,7 @@ async function createMarketplacePreference(
     notificationUrl: `${process.env.APP_URL}/api/payments/webhook`,
 
     // Marketplace split
-    marketplace: "PROFESIONAL-MARKETPLACE",
+    marketplace: 'PROFESIONAL-MARKETPLACE',
     marketplaceFee: platformFee,
     splitPayments: [
       {
@@ -188,14 +188,14 @@ async function createRestrictedPreference(
     amount: number;
     userEmail: string;
     bookingId: string;
-  }
+  },
 ) {
   const preference = await mercadoPagoService.createImprovedPreference({
     // Item
     serviceId: `service_${data.bookingId}`,
-    title: "Consulta Profesional Premium",
+    title: 'Consulta Profesional Premium',
     amount: data.amount,
-    currencyId: "ARS",
+    currencyId: 'ARS',
 
     // Payer
     payerEmail: data.userEmail,
@@ -211,8 +211,8 @@ async function createRestrictedPreference(
     // Restricciones de pago
     maxInstallments: 3, // Máximo 3 cuotas
     defaultInstallments: 1, // Por defecto 1 cuota
-    excludedPaymentTypes: ["ticket"], // No permitir pago en efectivo
-    excludedPaymentMethods: ["master"], // No permitir Mastercard (ejemplo)
+    excludedPaymentTypes: ['ticket'], // No permitir pago en efectivo
+    excludedPaymentMethods: ['master'], // No permitir Mastercard (ejemplo)
 
     // Tracking
     externalReference: data.bookingId,
@@ -225,14 +225,14 @@ async function createRestrictedPreference(
 // EJEMPLO 5: Detección Automática de Moneda por País
 // ============================================================================
 const CURRENCY_BY_COUNTRY = {
-  AR: "ARS",
-  BR: "BRL",
-  CL: "CLP",
-  CO: "COP",
-  MX: "MXN",
-  PE: "PEN",
-  UY: "UYU",
-  VE: "VES",
+  AR: 'ARS',
+  BR: 'BRL',
+  CL: 'CLP',
+  CO: 'COP',
+  MX: 'MXN',
+  PE: 'PEN',
+  UY: 'UYU',
+  VE: 'VES',
 };
 
 async function createPreferenceWithAutoCurrency(
@@ -243,16 +243,14 @@ async function createPreferenceWithAutoCurrency(
     amount: number;
     userEmail: string;
     bookingId: string;
-  }
+  },
 ) {
   const currencyId =
-    CURRENCY_BY_COUNTRY[
-      data.professionalCountryCode as keyof typeof CURRENCY_BY_COUNTRY
-    ] || "ARS";
+    CURRENCY_BY_COUNTRY[data.professionalCountryCode as keyof typeof CURRENCY_BY_COUNTRY] || 'ARS';
 
   const preference = await mercadoPagoService.createImprovedPreference({
     serviceId: `service_${data.bookingId}`,
-    title: "Consulta Profesional",
+    title: 'Consulta Profesional',
     amount: data.amount,
     currencyId: currencyId, // Moneda automática según país
 

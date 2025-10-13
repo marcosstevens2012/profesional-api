@@ -1,7 +1,7 @@
-import { Injectable, Logger, LoggerService } from "@nestjs/common";
-import * as Sentry from "@sentry/node";
-import { PostHog } from "posthog-node";
-import { validateEnvironment } from "./environment.schema";
+import { Injectable, Logger, LoggerService } from '@nestjs/common';
+import * as Sentry from '@sentry/node';
+import { PostHog } from 'posthog-node';
+import { validateEnvironment } from './environment.schema';
 
 @Injectable()
 export class ObservabilityService implements LoggerService {
@@ -19,32 +19,32 @@ export class ObservabilityService implements LoggerService {
       Sentry.init({
         dsn: this.config.SENTRY_DSN,
         environment: this.config.NODE_ENV,
-        tracesSampleRate: this.config.NODE_ENV === "production" ? 0.1 : 1.0,
-        debug: this.config.NODE_ENV === "development",
+        tracesSampleRate: this.config.NODE_ENV === 'production' ? 0.1 : 1.0,
+        debug: this.config.NODE_ENV === 'development',
         integrations: [
           new Sentry.Integrations.Http({ tracing: true }),
           new Sentry.Integrations.Express({ app: undefined }),
         ],
-        beforeSend: event => {
+        beforeSend: (event) => {
           // Filter out health check noise
-          if (event.request?.url?.includes("/health")) {
+          if (event.request?.url?.includes('/health')) {
             return null;
           }
           return event;
         },
       });
 
-      this.logger.log("Sentry initialized for error tracking");
+      this.logger.log('Sentry initialized for error tracking');
     }
   }
 
   private initializePostHog() {
     if (this.config.POSTHOG_KEY) {
       this.posthog = new PostHog(this.config.POSTHOG_KEY, {
-        host: "https://app.posthog.com",
+        host: 'https://app.posthog.com',
       });
 
-      this.logger.log("PostHog initialized for analytics");
+      this.logger.log('PostHog initialized for analytics');
     }
   }
 
@@ -59,13 +59,13 @@ export class ObservabilityService implements LoggerService {
     if (message instanceof Error) {
       Sentry.captureException(message);
     } else {
-      Sentry.captureMessage(message, "error");
+      Sentry.captureMessage(message, 'error');
     }
   }
 
   warn(message: any, context?: string) {
     this.logger.warn(message, context);
-    Sentry.captureMessage(message, "warning");
+    Sentry.captureMessage(message, 'warning');
   }
 
   debug(message: any, context?: string) {
@@ -77,14 +77,10 @@ export class ObservabilityService implements LoggerService {
   }
 
   // Business analytics
-  trackBusinessEvent(
-    event: string,
-    properties: Record<string, any>,
-    userId?: string
-  ) {
+  trackBusinessEvent(event: string, properties: Record<string, any>, userId?: string) {
     if (this.posthog) {
       this.posthog.capture({
-        distinctId: userId || "system",
+        distinctId: userId || 'system',
         event,
         properties: {
           ...properties,
@@ -112,9 +108,9 @@ export class ObservabilityService implements LoggerService {
 
   // Business-specific tracking methods
   trackBookingEvent(
-    event: "created" | "confirmed" | "cancelled" | "completed",
+    event: 'created' | 'confirmed' | 'cancelled' | 'completed',
     bookingId: string,
-    data: any
+    data: any,
   ) {
     this.trackBusinessEvent(`booking_${event}`, {
       booking_id: bookingId,
@@ -123,9 +119,9 @@ export class ObservabilityService implements LoggerService {
   }
 
   trackPaymentEvent(
-    event: "initiated" | "completed" | "failed" | "refunded",
+    event: 'initiated' | 'completed' | 'failed' | 'refunded',
     paymentId: string,
-    data: any
+    data: any,
   ) {
     this.trackBusinessEvent(`payment_${event}`, {
       payment_id: paymentId,
@@ -133,25 +129,21 @@ export class ObservabilityService implements LoggerService {
     });
   }
 
-  trackUserEvent(
-    event: "registered" | "login" | "logout",
-    userId: string,
-    data: any
-  ) {
+  trackUserEvent(event: 'registered' | 'login' | 'logout', userId: string, data: any) {
     this.trackBusinessEvent(
       `user_${event}`,
       {
         user_id: userId,
         ...data,
       },
-      userId
+      userId,
     );
   }
 
   trackProfessionalEvent(
-    event: "applied" | "approved" | "rejected" | "suspended",
+    event: 'applied' | 'approved' | 'rejected' | 'suspended',
     professionalId: string,
-    data: any
+    data: any,
   ) {
     this.trackBusinessEvent(`professional_${event}`, {
       professional_id: professionalId,
@@ -167,18 +159,13 @@ export class ObservabilityService implements LoggerService {
         target_id: targetId,
         ...data,
       },
-      adminId
+      adminId,
     );
   }
 
   // Performance monitoring
-  trackPerformance(
-    operation: string,
-    duration: number,
-    success: boolean,
-    metadata?: any
-  ) {
-    this.trackBusinessEvent("performance_metric", {
+  trackPerformance(operation: string, duration: number, success: boolean, metadata?: any) {
+    this.trackBusinessEvent('performance_metric', {
       operation,
       duration_ms: duration,
       success,

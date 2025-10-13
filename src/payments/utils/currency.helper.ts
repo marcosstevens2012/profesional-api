@@ -4,25 +4,25 @@
  */
 
 export enum CountryCode {
-  AR = "AR", // Argentina
-  BR = "BR", // Brasil
-  CL = "CL", // Chile
-  CO = "CO", // Colombia
-  MX = "MX", // México
-  PE = "PE", // Perú
-  UY = "UY", // Uruguay
-  VE = "VE", // Venezuela
+  AR = 'AR', // Argentina
+  BR = 'BR', // Brasil
+  CL = 'CL', // Chile
+  CO = 'CO', // Colombia
+  MX = 'MX', // México
+  PE = 'PE', // Perú
+  UY = 'UY', // Uruguay
+  VE = 'VE', // Venezuela
 }
 
 export enum CurrencyCode {
-  ARS = "ARS", // Peso argentino
-  BRL = "BRL", // Real brasileño
-  CLP = "CLP", // Peso chileno
-  COP = "COP", // Peso colombiano
-  MXN = "MXN", // Peso mexicano
-  PEN = "PEN", // Nuevo sol peruano
-  UYU = "UYU", // Peso uruguayo
-  VES = "VES", // Bolívar soberano venezolano
+  ARS = 'ARS', // Peso argentino
+  BRL = 'BRL', // Real brasileño
+  CLP = 'CLP', // Peso chileno
+  COP = 'COP', // Peso colombiano
+  MXN = 'MXN', // Peso mexicano
+  PEN = 'PEN', // Nuevo sol peruano
+  UYU = 'UYU', // Peso uruguayo
+  VES = 'VES', // Bolívar soberano venezolano
 }
 
 /**
@@ -43,28 +43,28 @@ const CURRENCY_MAP: Record<CountryCode, CurrencyCode> = {
  * Símbolos de monedas para display en UI
  */
 const CURRENCY_SYMBOLS: Record<CurrencyCode, string> = {
-  [CurrencyCode.ARS]: "$",
-  [CurrencyCode.BRL]: "R$",
-  [CurrencyCode.CLP]: "$",
-  [CurrencyCode.COP]: "$",
-  [CurrencyCode.MXN]: "$",
-  [CurrencyCode.PEN]: "S/",
-  [CurrencyCode.UYU]: "$",
-  [CurrencyCode.VES]: "Bs",
+  [CurrencyCode.ARS]: '$',
+  [CurrencyCode.BRL]: 'R$',
+  [CurrencyCode.CLP]: '$',
+  [CurrencyCode.COP]: '$',
+  [CurrencyCode.MXN]: '$',
+  [CurrencyCode.PEN]: 'S/',
+  [CurrencyCode.UYU]: '$',
+  [CurrencyCode.VES]: 'Bs',
 };
 
 /**
  * Nombres de monedas para display
  */
 const CURRENCY_NAMES: Record<CurrencyCode, string> = {
-  [CurrencyCode.ARS]: "Peso argentino",
-  [CurrencyCode.BRL]: "Real brasileño",
-  [CurrencyCode.CLP]: "Peso chileno",
-  [CurrencyCode.COP]: "Peso colombiano",
-  [CurrencyCode.MXN]: "Peso mexicano",
-  [CurrencyCode.PEN]: "Nuevo sol",
-  [CurrencyCode.UYU]: "Peso uruguayo",
-  [CurrencyCode.VES]: "Bolívar",
+  [CurrencyCode.ARS]: 'Peso argentino',
+  [CurrencyCode.BRL]: 'Real brasileño',
+  [CurrencyCode.CLP]: 'Peso chileno',
+  [CurrencyCode.COP]: 'Peso colombiano',
+  [CurrencyCode.MXN]: 'Peso mexicano',
+  [CurrencyCode.PEN]: 'Nuevo sol',
+  [CurrencyCode.UYU]: 'Peso uruguayo',
+  [CurrencyCode.VES]: 'Bolívar',
 };
 
 /**
@@ -75,7 +75,7 @@ const CURRENCY_NAMES: Record<CurrencyCode, string> = {
  */
 export function getCurrencyByCountry(
   countryCode: string,
-  fallback: CurrencyCode = CurrencyCode.ARS
+  fallback: CurrencyCode = CurrencyCode.ARS,
 ): CurrencyCode {
   const upperCode = countryCode.toUpperCase() as CountryCode;
   return CURRENCY_MAP[upperCode] || fallback;
@@ -87,7 +87,7 @@ export function getCurrencyByCountry(
  * @returns Símbolo de la moneda ($, R$, etc.)
  */
 export function getCurrencySymbol(currencyCode: CurrencyCode): string {
-  return CURRENCY_SYMBOLS[currencyCode] || "$";
+  return CURRENCY_SYMBOLS[currencyCode] || '$';
 }
 
 /**
@@ -96,7 +96,7 @@ export function getCurrencySymbol(currencyCode: CurrencyCode): string {
  * @returns Nombre de la moneda
  */
 export function getCurrencyName(currencyCode: CurrencyCode): string {
-  return CURRENCY_NAMES[currencyCode] || "Peso";
+  return CURRENCY_NAMES[currencyCode] || 'Peso';
 }
 
 /**
@@ -109,10 +109,10 @@ export function getCurrencyName(currencyCode: CurrencyCode): string {
 export function formatCurrency(
   amount: number,
   currencyCode: CurrencyCode,
-  locale: string = "es-AR"
+  locale: string = 'es-AR',
 ): string {
   return new Intl.NumberFormat(locale, {
-    style: "currency",
+    style: 'currency',
     currency: currencyCode,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -125,9 +125,7 @@ export function formatCurrency(
  * @returns true si es soportado
  */
 export function isSupportedCountry(countryCode: string): boolean {
-  return Object.values(CountryCode).includes(
-    countryCode.toUpperCase() as CountryCode
-  );
+  return Object.values(CountryCode).includes(countryCode.toUpperCase() as CountryCode);
 }
 
 /**
@@ -136,9 +134,7 @@ export function isSupportedCountry(countryCode: string): boolean {
  * @returns true si es soportado
  */
 export function isSupportedCurrency(currencyCode: string): boolean {
-  return Object.values(CurrencyCode).includes(
-    currencyCode.toUpperCase() as CurrencyCode
-  );
+  return Object.values(CurrencyCode).includes(currencyCode.toUpperCase() as CurrencyCode);
 }
 
 /**

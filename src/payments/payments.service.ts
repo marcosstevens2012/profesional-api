@@ -222,10 +222,7 @@ export class PaymentsService {
     }
   }
 
-  private async processPaymentNotification(
-    mpPayment: MPPaymentResponse,
-    webhookEventId?: string,
-  ) {
+  private async processPaymentNotification(mpPayment: MPPaymentResponse, webhookEventId?: string) {
     this.logger.log('💰 Processing payment notification', {
       payment_id: mpPayment.id,
       status: mpPayment.status,

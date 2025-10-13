@@ -1,30 +1,26 @@
-import { Injectable } from "@nestjs/common";
-import type {
-  CreateUserDTO,
-  UpdateUserDTO,
-  User,
-} from "@marcosstevens2012/contracts";
+import { Injectable } from '@nestjs/common';
+import type { CreateUserDTO, UpdateUserDTO, User } from '@marcosstevens2012/contracts';
 
 @Injectable()
 export class UsersService {
   private users: User[] = [
     {
-      id: "1",
-      email: "john@example.com",
-      name: "John Doe",
+      id: '1',
+      email: 'john@example.com',
+      name: 'John Doe',
       isActive: true,
-      role: "client",
-      createdAt: new Date("2024-01-01"),
-      updatedAt: new Date("2024-01-01"),
+      role: 'client',
+      createdAt: new Date('2024-01-01'),
+      updatedAt: new Date('2024-01-01'),
     },
     {
-      id: "2",
-      email: "jane@example.com",
-      name: "Jane Smith",
+      id: '2',
+      email: 'jane@example.com',
+      name: 'Jane Smith',
       isActive: true,
-      role: "professional",
-      createdAt: new Date("2024-01-02"),
-      updatedAt: new Date("2024-01-02"),
+      role: 'professional',
+      createdAt: new Date('2024-01-02'),
+      updatedAt: new Date('2024-01-02'),
     },
   ];
 
@@ -45,11 +41,11 @@ export class UsersService {
   }
 
   findOne(id: string): User | null {
-    return this.users.find(user => user.id === id) || null;
+    return this.users.find((user) => user.id === id) || null;
   }
 
   update(id: string, updateUserDto: UpdateUserDTO): User | null {
-    const userIndex = this.users.findIndex(user => user.id === id);
+    const userIndex = this.users.findIndex((user) => user.id === id);
     if (userIndex === -1) {
       return null;
     }
@@ -65,7 +61,7 @@ export class UsersService {
   }
 
   remove(id: string): { success: boolean } {
-    const userIndex = this.users.findIndex(user => user.id === id);
+    const userIndex = this.users.findIndex((user) => user.id === id);
     if (userIndex === -1) {
       return { success: false };
     }

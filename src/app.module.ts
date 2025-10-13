@@ -1,29 +1,29 @@
-import { Module } from "@nestjs/common";
-import { ConfigModule, ConfigService } from "@nestjs/config";
-import { APP_FILTER, APP_GUARD } from "@nestjs/core";
-import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
-import { LoggerModule } from "nestjs-pino";
-import { AppController } from "./app.controller";
-import { AppService } from "./app.service";
-import { HttpExceptionFilter, JwtAuthGuard, RolesGuard } from "./common";
-import { validateEnv } from "./config";
-import emailConfig from "./config/email.config";
-import jwtConfig from "./config/jwt.config";
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { LoggerModule } from 'nestjs-pino';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { HttpExceptionFilter, JwtAuthGuard, RolesGuard } from './common';
+import { validateEnv } from './config';
+import emailConfig from './config/email.config';
+import jwtConfig from './config/jwt.config';
 
 // Feature modules
-import { AdminModule } from "./admin/admin.module";
-import { AuthModule } from "./auth/auth.module";
-import { BookingsModule } from "./bookings/bookings.module";
-import { ConfigModule as GlobalConfigModule } from "./config/config.module";
-import { DatabaseModule } from "./database/database.module";
-import { ExamplesModule } from "./examples/examples.module";
-import { HealthModule } from "./health/health.module";
-import { NotificationsModule } from "./notifications/notifications.module";
-import { PaymentsModule } from "./payments/payments.module";
-import { ProfilesModule } from "./profiles/profiles.module";
-import { SearchModule } from "./search/search.module";
-import { ServicesModule } from "./services/services.module";
-import { UsersModule } from "./users/users.module";
+import { AdminModule } from './admin/admin.module';
+import { AuthModule } from './auth/auth.module';
+import { BookingsModule } from './bookings/bookings.module';
+import { ConfigModule as GlobalConfigModule } from './config/config.module';
+import { DatabaseModule } from './database/database.module';
+import { ExamplesModule } from './examples/examples.module';
+import { HealthModule } from './health/health.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { PaymentsModule } from './payments/payments.module';
+import { ProfilesModule } from './profiles/profiles.module';
+import { SearchModule } from './search/search.module';
+import { ServicesModule } from './services/services.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -31,7 +31,7 @@ import { UsersModule } from "./users/users.module";
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
-      envFilePath: [".env.local", ".env"],
+      envFilePath: ['.env.local', '.env'],
       load: [jwtConfig, emailConfig],
     }),
 
@@ -40,8 +40,8 @@ import { UsersModule } from "./users/users.module";
       inject: [ConfigService],
       useFactory: (config: ConfigService) => [
         {
-          ttl: config.get("RATE_LIMIT_TTL", 60) * 1000,
-          limit: config.get("RATE_LIMIT_MAX", 100),
+          ttl: config.get('RATE_LIMIT_TTL', 60) * 1000,
+          limit: config.get('RATE_LIMIT_MAX', 100),
         },
       ],
     }),
@@ -51,17 +51,17 @@ import { UsersModule } from "./users/users.module";
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         pinoHttp: {
-          level: config.get("NODE_ENV") === "development" ? "debug" : "info",
+          level: config.get('NODE_ENV') === 'development' ? 'debug' : 'info',
           transport:
-            config.get("NODE_ENV") === "development"
-              ? { target: "pino-pretty", options: { singleLine: true } }
+            config.get('NODE_ENV') === 'development'
+              ? { target: 'pino-pretty', options: { singleLine: true } }
               : undefined,
-          redact: ["req.headers.authorization"],
+          redact: ['req.headers.authorization'],
           serializers: {
             req: (req: any) => ({
               method: req.method,
               url: req.url,
-              userAgent: req.headers["user-agent"],
+              userAgent: req.headers['user-agent'],
               requestId: req.requestId,
             }),
           },
