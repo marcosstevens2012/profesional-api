@@ -145,7 +145,7 @@ export class PaymentsService {
         await this._prisma.paymentEvent.create({
           data: {
             paymentId: `no-data-${Date.now()}`,
-            externalId: data.id,
+            externalId: data.id ? String(data.id) : null,
             type: data.type || 'unknown',
             rawPayload: JSON.parse(JSON.stringify(data)),
             idempotencyKey: `webhook-no-data-${data.id}-${Date.now()}`,
@@ -160,7 +160,7 @@ export class PaymentsService {
       await this._prisma.paymentEvent.create({
         data: {
           paymentId: `temp-${Date.now()}`, // Temporal hasta encontrar el payment real
-          externalId: data.id,
+          externalId: data.id ? String(data.id) : null,
           type: data.type,
           rawPayload: JSON.parse(JSON.stringify(data)),
           idempotencyKey: `webhook-${data.id}-${Date.now()}`,
@@ -205,7 +205,7 @@ export class PaymentsService {
       await this._prisma.paymentEvent.create({
         data: {
           paymentId: `error-${Date.now()}`,
-          externalId: data.id,
+          externalId: data.id ? String(data.id) : null,
           type: data.type || 'webhook_error',
           rawPayload: JSON.parse(JSON.stringify(data)),
           idempotencyKey: `error-${data.id || Date.now()}-${Date.now()}`,
