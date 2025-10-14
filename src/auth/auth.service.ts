@@ -13,6 +13,8 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  InternalServerErrorException,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -27,6 +29,7 @@ import { PrismaService } from '../database/prisma.service';
 @Injectable()
 export class AuthService {
   private readonly jwtConfig: JwtConfig;
+  private readonly logger = new Logger(AuthService.name);
 
   constructor(
     private readonly _jwtService: JwtService,
@@ -61,7 +64,7 @@ export class AuthService {
         data: {
           email,
           password: hashedPassword,
-          role: role.toUpperCase() as any,
+          role: role.toUpperCase() as 'CLIENT' | 'PROFESSIONAL' | 'ADMIN',
           status: 'PENDING_VERIFICATION',
           profile: {
             create: {
@@ -106,7 +109,7 @@ export class AuthService {
         name: `${user.profile?.firstName} ${user.profile?.lastName}`.trim(),
         avatar: user.profile?.avatar || undefined,
         isActive: user.status === 'ACTIVE',
-        role: user.role.toLowerCase() as any,
+        role: user.role.toLowerCase() as 'client' | 'professional' | 'admin',
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         status: user.status,
@@ -119,59 +122,80 @@ export class AuthService {
    * Login user
    */
   async login(dto: LoginRequest): Promise<AuthResponse> {
-    const { email, password } = dto;
+    try {
+      const { email, password } = dto;
 
-    // Find user with profile
-    const user = await this._prisma.user.findUnique({
-      where: { email },
-      include: { profile: true },
-    });
+      this.logger.log(`Login attempt for email: ${email}`);
 
-    if (!user || user.deletedAt) {
-      throw new UnauthorizedException('Credenciales inválidas');
-    }
+      // Find user with profile
+      const user = await this._prisma.user.findUnique({
+        where: { email },
+        include: { profile: true },
+      });
 
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciales inválidas');
-    }
+      if (!user || user.deletedAt) {
+        this.logger.warn(`Login failed: User not found or deleted - ${email}`);
+        throw new UnauthorizedException('Credenciales inválidas');
+      }
 
-    // Check if user is suspended
-    if (user.status === 'SUSPENDED') {
-      throw new UnauthorizedException(
-        'Tu cuenta ha sido suspendida. Contactá al soporte para más información.',
-      );
-    }
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        this.logger.warn(`Login failed: Invalid password - ${email}`);
+        throw new UnauthorizedException('Credenciales inválidas');
+      }
 
-    // Check if email is verified
-    if (user.status === 'PENDING_VERIFICATION') {
-      throw new UnauthorizedException(
-        'Necesitás verificar tu email antes de iniciar sesión. Revisá tu correo electrónico.',
-      );
-    }
+      // Check if user is suspended
+      if (user.status === 'SUSPENDED') {
+        this.logger.warn(`Login failed: User suspended - ${email}`);
+        throw new UnauthorizedException(
+          'Tu cuenta ha sido suspendida. Contactá al soporte para más información.',
+        );
+      }
 
-    // Generate tokens
-    const tokens = await this.generateTokens({
-      sub: user.id,
-      email: user.email,
-      role: user.role.toLowerCase(),
-    });
+      // Check if email is verified
+      if (user.status === 'PENDING_VERIFICATION') {
+        this.logger.warn(`Login failed: Email not verified - ${email}`);
+        throw new UnauthorizedException(
+          'Necesitás verificar tu email antes de iniciar sesión. Revisá tu correo electrónico.',
+        );
+      }
 
-    return {
-      user: {
-        id: user.id,
+      this.logger.log(`Generating tokens for user: ${user.id}`);
+
+      // Generate tokens
+      const tokens = await this.generateTokens({
+        sub: user.id,
         email: user.email,
-        name: `${user.profile?.firstName} ${user.profile?.lastName}`.trim(),
-        avatar: user.profile?.avatar || undefined,
-        isActive: user.status === 'ACTIVE',
-        role: user.role.toLowerCase() as any,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-        status: user.status,
-      },
-      tokens,
-    };
+        role: user.role.toLowerCase(),
+      });
+
+      this.logger.log(`Login successful for user: ${user.id}`);
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: `${user.profile?.firstName} ${user.profile?.lastName}`.trim(),
+          avatar: user.profile?.avatar || undefined,
+          isActive: user.status === 'ACTIVE',
+          role: user.role.toLowerCase() as 'client' | 'professional' | 'admin',
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          status: user.status,
+        },
+        tokens,
+      };
+    } catch (error) {
+      // Re-throw HttpExceptions (UnauthorizedException, etc.)
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      // Log and wrap any other errors
+      this.logger.error('Unexpected error during login:', error);
+      throw new InternalServerErrorException('Error al procesar el inicio de sesión');
+    }
   }
 
   /**
@@ -421,34 +445,49 @@ export class AuthService {
    * Generate access and refresh tokens
    */
   private async generateTokens(payload: Omit<JwtPayload, 'iat' | 'exp'>): Promise<AuthTokens> {
-    // Generate access token
-    const accessToken = await this._jwtService.signAsync(payload, {
-      secret: this.jwtConfig.secret,
-      expiresIn: this.jwtConfig.accessTokenExpiresIn,
-    });
+    try {
+      this.logger.log(`Generating tokens for user: ${payload.sub}`);
 
-    // Generate refresh token
-    const refreshToken = await this._jwtService.signAsync(payload, {
-      secret: this.jwtConfig.refreshSecret,
-      expiresIn: this.jwtConfig.refreshTokenExpiresIn,
-    });
+      // Validate JWT configuration
+      if (!this.jwtConfig.secret || !this.jwtConfig.refreshSecret) {
+        this.logger.error('JWT secrets are not configured properly');
+        throw new InternalServerErrorException('Error de configuración del servidor');
+      }
 
-    // Store refresh token in database
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+      // Generate access token
+      const accessToken = await this._jwtService.signAsync(payload, {
+        secret: this.jwtConfig.secret,
+        expiresIn: this.jwtConfig.accessTokenExpiresIn,
+      });
 
-    await this._prisma.refreshToken.create({
-      data: {
-        userId: payload.sub,
-        token: refreshToken,
-        expiresAt,
-      },
-    });
+      // Generate refresh token
+      const refreshToken = await this._jwtService.signAsync(payload, {
+        secret: this.jwtConfig.refreshSecret,
+        expiresIn: this.jwtConfig.refreshTokenExpiresIn,
+      });
 
-    return {
-      accessToken,
-      refreshToken,
-      expiresIn: 15 * 60, // 15 minutes in seconds
-    };
+      // Store refresh token in database
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+
+      await this._prisma.refreshToken.create({
+        data: {
+          userId: payload.sub,
+          token: refreshToken,
+          expiresAt,
+        },
+      });
+
+      this.logger.log(`Tokens generated successfully for user: ${payload.sub}`);
+
+      return {
+        accessToken,
+        refreshToken,
+        expiresIn: 15 * 60, // 15 minutes in seconds
+      };
+    } catch (error) {
+      this.logger.error('Error generating tokens:', error);
+      throw new InternalServerErrorException('Error al generar tokens de autenticación');
+    }
   }
 }
