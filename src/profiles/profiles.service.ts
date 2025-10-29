@@ -30,16 +30,6 @@ export class ProfilesService {
   async getMyProfile(userId: string): Promise<Profile> {
     const profile = await this._prisma.profile.findUnique({
       where: { userId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            role: true,
-            status: true,
-          },
-        },
-      },
     });
 
     if (!profile) {
@@ -645,6 +635,7 @@ export class ProfilesService {
         include: {
           client: {
             select: {
+              id: true,
               profile: {
                 select: {
                   firstName: true,
@@ -667,7 +658,7 @@ export class ProfilesService {
         id: review.id,
         rating: review.rating,
         comment: review.comment,
-        professionalResponse: review.professionalResponse,
+        professionalResponse: null, // TODO: Add this field to Review model
         createdAt: review.createdAt,
         user: {
           id: review.client.id,
@@ -699,6 +690,7 @@ export class ProfilesService {
       include: {
         client: {
           select: {
+            id: true,
             profile: {
               select: {
                 firstName: true,
@@ -733,7 +725,7 @@ export class ProfilesService {
         id: review.id,
         rating: review.rating,
         comment: review.comment,
-        professionalResponse: review.professionalResponse,
+        professionalResponse: null, // TODO: Add this field to Review model
         createdAt: review.createdAt,
         user: {
           id: review.client.id,
@@ -745,7 +737,7 @@ export class ProfilesService {
     };
   }
 
-  async respondToReview(userId: string, reviewId: string, responseDto: ReviewResponseDto) {
+  async respondToReview(userId: string, reviewId: string, _responseDto: ReviewResponseDto) {
     const professionalProfile = await this._prisma.professionalProfile.findFirst({
       where: { userId, deletedAt: null },
     });
@@ -762,10 +754,16 @@ export class ProfilesService {
       throw new NotFoundException('Review not found');
     }
 
-    return this._prisma.review.update({
+    // TODO: Add professionalResponse field to Review model in Prisma schema
+    // Then enable this update
+    throw new Error(
+      'Professional response feature not yet implemented. Please add professionalResponse field to Review model.',
+    );
+
+    /* return this._prisma.review.update({
       where: { id: reviewId },
       data: { professionalResponse: responseDto.response },
-    });
+    }); */
   }
 
   async getProfessionalReviews(professionalId: string, query: ReviewQueryDto) {
@@ -789,6 +787,7 @@ export class ProfilesService {
         include: {
           client: {
             select: {
+              id: true,
               profile: {
                 select: {
                   firstName: true,
@@ -811,7 +810,7 @@ export class ProfilesService {
         id: review.id,
         rating: review.rating,
         comment: review.comment,
-        professionalResponse: review.professionalResponse,
+        professionalResponse: null, // TODO: Add this field to Review model
         createdAt: review.createdAt,
         user: {
           id: review.client.id,
@@ -877,8 +876,7 @@ export class ProfilesService {
     const completedBookings = bookings.filter((b) => b.meetingStatus === 'COMPLETED').length;
     const cancelledBookings = bookings.filter((b) => b.meetingStatus === 'CANCELLED').length;
     const pendingBookings = bookings.filter(
-      (b) =>
-        b.meetingStatus === 'PENDING_PAYMENT' || b.meetingStatus === 'WAITING_FOR_PROFESSIONAL',
+      (b) => b.meetingStatus === 'PENDING' || b.meetingStatus === 'WAITING',
     ).length;
     const completionRate = totalBookings > 0 ? (completedBookings / totalBookings) * 100 : 0;
 
@@ -915,10 +913,7 @@ export class ProfilesService {
       },
     });
 
-    const totalRevenue = completedBookings.reduce(
-      (sum, booking) => sum + Number(booking.totalAmount),
-      0,
-    );
+    const totalRevenue = completedBookings.reduce((sum, booking) => sum + Number(booking.price), 0);
     const averageSessionValue =
       completedBookings.length > 0 ? totalRevenue / completedBookings.length : 0;
 
@@ -935,7 +930,7 @@ export class ProfilesService {
     };
   }
 
-  async getProfileStats(userId: string, query: AnalyticsQueryDto) {
+  async getProfileStats(userId: string, _query: AnalyticsQueryDto) {
     const professionalProfile = await this._prisma.professionalProfile.findFirst({
       where: { userId, deletedAt: null },
     });
@@ -955,7 +950,7 @@ export class ProfilesService {
     };
   }
 
-  async getPopularTimes(userId: string, query: AnalyticsQueryDto) {
+  async getPopularTimes(userId: string, _query: AnalyticsQueryDto) {
     const professionalProfile = await this._prisma.professionalProfile.findFirst({
       where: { userId, deletedAt: null },
     });

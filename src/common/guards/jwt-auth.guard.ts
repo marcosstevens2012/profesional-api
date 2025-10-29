@@ -10,6 +10,7 @@ export interface JwtPayload {
   sub: string; // user id
   email: string;
   role: string;
+  userId?: string; // Alias for sub, added for backwards compatibility
   iat?: number;
   exp?: number;
 }
@@ -18,7 +19,7 @@ export interface JwtPayload {
 declare global {
   namespace Express {
     interface Request {
-      user?: JwtPayload;
+      user?: JwtPayload & { userId: string };
     }
   }
 }
@@ -56,7 +57,8 @@ export class JwtAuthGuard implements CanActivate {
       const payload = await this._jwtService.verifyAsync<JwtPayload>(token, {
         secret: this.jwtConfig.secret,
       });
-      request.user = payload;
+      // Add userId for backwards compatibility
+      request.user = { ...payload, userId: payload.sub };
       return true;
     } catch (error) {
       throw new UnauthorizedException('Token inválido o expirado');

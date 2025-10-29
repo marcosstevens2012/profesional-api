@@ -387,16 +387,20 @@ export class BookingsService {
       where: {
         professionalId: professionalProfile.id,
         meetingStatus: {
-          in: [MeetingStatus.PENDING, MeetingStatus.WAITING],
+          in: [MeetingStatus.PENDING, MeetingStatus.WAITING, MeetingStatus.ACTIVE],
         },
-        status: BookingStatus.CONFIRMED, // Solo reuniones pagadas
       },
       include: {
         client: {
           select: {
             id: true,
-            name: true,
             email: true,
+            profile: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
         },
       },
@@ -415,7 +419,7 @@ export class BookingsService {
   async getWaitingBookings(professionalUserId: string) {
     const professionalProfile = await this.prisma.professionalProfile.findUnique({
       where: { userId: professionalUserId },
-      select: { id: true, name: true },
+      select: { id: true },
     });
 
     if (!professionalProfile) {
@@ -432,8 +436,13 @@ export class BookingsService {
         client: {
           select: {
             id: true,
-            name: true,
             email: true,
+            profile: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
         },
         payment: {
