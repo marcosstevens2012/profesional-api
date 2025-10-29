@@ -321,13 +321,15 @@ model PaymentEvent {
 }
 
 model Review {
-  id             String  @id @default(cuid())
-  bookingId      String  @unique
-  clientId       String
-  professionalId String
-  rating         Int // 1-5
-  comment        String?
-  visible        Boolean @default(true)
+  id                   String   @id @default(cuid())
+  bookingId            String   @unique
+  clientId             String
+  professionalId       String
+  rating               Int // 1-5
+  comment              String?
+  professionalResponse String? // Respuesta del profesional a la reseña
+  respondedAt          DateTime? // Fecha de respuesta del profesional
+  visible              Boolean  @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

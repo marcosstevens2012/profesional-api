@@ -40,17 +40,74 @@ export class ProfilesService {
   }
 
   async updateMyProfile(userId: string, updateProfileDto: UpdateProfileDto): Promise<Profile> {
-    const profile = await this._prisma.profile.findUnique({
-      where: { userId },
+    const user = await this._prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: true,
+        professionalProfile: true,
+      },
     });
 
-    if (!profile) {
+    if (!user || !user.profile) {
       throw new NotFoundException('Profile not found for this user');
     }
 
-    return this._prisma.profile.update({
-      where: { userId },
-      data: updateProfileDto,
+    // Separar campos entre Profile, ProfessionalProfile y User
+    const {
+      firstName,
+      lastName,
+      bio,
+      description,
+      pricePerSession,
+      standardDuration,
+      serviceCategoryId,
+      tags,
+      locationId,
+      phone,
+      isActive,
+      email,
+      name,
+      avatar,
+      // website y location no existen en el schema actual, los ignoramos por ahora
+      website: _website,
+      location: _location,
+      ...profileFields
+    } = updateProfileDto;
+
+    // Actualizar en una transacción
+    return this._prisma.$transaction(async (tx) => {
+      // 1. Actualizar Profile (tabla básica)
+      const updatedProfile = await tx.profile.update({
+        where: { userId },
+        data: {
+          ...(firstName && { firstName }),
+          ...(lastName && { lastName }),
+          ...(phone && { phone }),
+          ...(avatar && { avatar }),
+          ...profileFields,
+        },
+      });
+
+      // 2. Si el usuario es profesional, actualizar ProfessionalProfile
+      if (user.role === 'PROFESSIONAL' && user.professionalProfile) {
+        await tx.professionalProfile.update({
+          where: { userId },
+          data: {
+            ...(email && { email }),
+            ...(name && { name }),
+            ...(bio && { bio }),
+            ...(description && { description }),
+            ...(pricePerSession && { pricePerSession }),
+            ...(standardDuration && { standardDuration }),
+            ...(serviceCategoryId && { serviceCategoryId }),
+            ...(tags && { tags }),
+            ...(locationId && { locationId }),
+            ...(isActive !== undefined && { isActive }),
+          },
+        });
+      }
+
+      return updatedProfile;
     });
   }
 
@@ -658,7 +715,8 @@ export class ProfilesService {
         id: review.id,
         rating: review.rating,
         comment: review.comment,
-        professionalResponse: null, // TODO: Add this field to Review model
+        professionalResponse: review.professionalResponse,
+        respondedAt: review.respondedAt,
         createdAt: review.createdAt,
         user: {
           id: review.client.id,
@@ -725,7 +783,8 @@ export class ProfilesService {
         id: review.id,
         rating: review.rating,
         comment: review.comment,
-        professionalResponse: null, // TODO: Add this field to Review model
+        professionalResponse: review.professionalResponse,
+        respondedAt: review.respondedAt,
         createdAt: review.createdAt,
         user: {
           id: review.client.id,
@@ -737,7 +796,7 @@ export class ProfilesService {
     };
   }
 
-  async respondToReview(userId: string, reviewId: string, _responseDto: ReviewResponseDto) {
+  async respondToReview(userId: string, reviewId: string, responseDto: ReviewResponseDto) {
     const professionalProfile = await this._prisma.professionalProfile.findFirst({
       where: { userId, deletedAt: null },
     });
@@ -754,16 +813,27 @@ export class ProfilesService {
       throw new NotFoundException('Review not found');
     }
 
-    // TODO: Add professionalResponse field to Review model in Prisma schema
-    // Then enable this update
-    throw new Error(
-      'Professional response feature not yet implemented. Please add professionalResponse field to Review model.',
-    );
-
-    /* return this._prisma.review.update({
+    return this._prisma.review.update({
       where: { id: reviewId },
-      data: { professionalResponse: responseDto.response },
-    }); */
+      data: {
+        professionalResponse: responseDto.response,
+        respondedAt: new Date(),
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            profile: {
+              select: {
+                firstName: true,
+                lastName: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+      },
+    });
   }
 
   async getProfessionalReviews(professionalId: string, query: ReviewQueryDto) {
@@ -810,7 +880,8 @@ export class ProfilesService {
         id: review.id,
         rating: review.rating,
         comment: review.comment,
-        professionalResponse: null, // TODO: Add this field to Review model
+        professionalResponse: review.professionalResponse,
+        respondedAt: review.respondedAt,
         createdAt: review.createdAt,
         user: {
           id: review.client.id,
