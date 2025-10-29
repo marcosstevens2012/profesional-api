@@ -1,10 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Profile } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { AnalyticsQueryDto } from './dto/analytics.dto';
+import {
+  AvailabilityQueryDto,
+  CreateAvailabilitySlotDto,
+  UpdateAvailabilitySlotDto,
+} from './dto/availability.dto';
 import {
   ConfigureMercadoPagoDto,
   MercadoPagoConfigResponse,
 } from './dto/configure-mercadopago.dto';
+import { ReviewQueryDto, ReviewResponseDto } from './dto/reviews.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
@@ -465,6 +472,525 @@ export class ProfilesService {
       mercadoPagoEmail: professionalProfile.mercadoPagoEmail || undefined,
       mercadoPagoUserId: professionalProfile.mercadoPagoUserId || undefined,
       configuredAt: professionalProfile.mpConfiguredAt || undefined,
+    };
+  }
+
+  // ========== AVAILABILITY METHODS ==========
+
+  async createAvailabilitySlot(userId: string, createSlotDto: CreateAvailabilitySlotDto) {
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: { userId, deletedAt: null },
+    });
+
+    if (!professionalProfile) {
+      throw new NotFoundException('Professional profile not found for this user');
+    }
+
+    return this._prisma.availabilitySlot.create({
+      data: {
+        professionalId: professionalProfile.id,
+        type: createSlotDto.type,
+        dayOfWeek: createSlotDto.dayOfWeek,
+        startTime: createSlotDto.startTime,
+        endTime: createSlotDto.endTime,
+        specificDate: createSlotDto.specificDate ? new Date(createSlotDto.specificDate) : null,
+        specificStart: createSlotDto.specificStart ? new Date(createSlotDto.specificStart) : null,
+        specificEnd: createSlotDto.specificEnd ? new Date(createSlotDto.specificEnd) : null,
+        isActive: createSlotDto.isActive ?? true,
+      },
+    });
+  }
+
+  async getMyAvailability(userId: string, query: AvailabilityQueryDto) {
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: { userId, deletedAt: null },
+    });
+
+    if (!professionalProfile) {
+      throw new NotFoundException('Professional profile not found for this user');
+    }
+
+    const where: any = { professionalId: professionalProfile.id };
+
+    if (query.type) where.type = query.type;
+    if (query.dayOfWeek) where.dayOfWeek = query.dayOfWeek;
+    if (query.isActive !== undefined) where.isActive = query.isActive;
+    if (query.fromDate) {
+      where.OR = [{ specificDate: { gte: new Date(query.fromDate) } }, { type: 'RECURRING' }];
+    }
+
+    return this._prisma.availabilitySlot.findMany({
+      where,
+      orderBy: [
+        { type: 'asc' },
+        { dayOfWeek: 'asc' },
+        { specificDate: 'asc' },
+        { startTime: 'asc' },
+      ],
+    });
+  }
+
+  async getProfessionalAvailability(professionalId: string, query: AvailabilityQueryDto) {
+    const where: any = { professionalId, isActive: true };
+
+    if (query.type) where.type = query.type;
+    if (query.dayOfWeek) where.dayOfWeek = query.dayOfWeek;
+    if (query.fromDate) {
+      where.OR = [{ specificDate: { gte: new Date(query.fromDate) } }, { type: 'RECURRING' }];
+    }
+
+    return this._prisma.availabilitySlot.findMany({
+      where,
+      orderBy: [
+        { type: 'asc' },
+        { dayOfWeek: 'asc' },
+        { specificDate: 'asc' },
+        { startTime: 'asc' },
+      ],
+    });
+  }
+
+  async updateAvailabilitySlot(
+    userId: string,
+    slotId: string,
+    updateSlotDto: UpdateAvailabilitySlotDto,
+  ) {
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: { userId, deletedAt: null },
+    });
+
+    if (!professionalProfile) {
+      throw new NotFoundException('Professional profile not found for this user');
+    }
+
+    const slot = await this._prisma.availabilitySlot.findFirst({
+      where: { id: slotId, professionalId: professionalProfile.id },
+    });
+
+    if (!slot) {
+      throw new NotFoundException('Availability slot not found');
+    }
+
+    const updateData: any = {};
+    if (updateSlotDto.dayOfWeek) updateData.dayOfWeek = updateSlotDto.dayOfWeek;
+    if (updateSlotDto.startTime) updateData.startTime = updateSlotDto.startTime;
+    if (updateSlotDto.endTime) updateData.endTime = updateSlotDto.endTime;
+    if (updateSlotDto.specificDate) updateData.specificDate = new Date(updateSlotDto.specificDate);
+    if (updateSlotDto.specificStart)
+      updateData.specificStart = new Date(updateSlotDto.specificStart);
+    if (updateSlotDto.specificEnd) updateData.specificEnd = new Date(updateSlotDto.specificEnd);
+    if (updateSlotDto.isActive !== undefined) updateData.isActive = updateSlotDto.isActive;
+
+    return this._prisma.availabilitySlot.update({
+      where: { id: slotId },
+      data: updateData,
+    });
+  }
+
+  async deleteAvailabilitySlot(userId: string, slotId: string) {
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: { userId, deletedAt: null },
+    });
+
+    if (!professionalProfile) {
+      throw new NotFoundException('Professional profile not found for this user');
+    }
+
+    const slot = await this._prisma.availabilitySlot.findFirst({
+      where: { id: slotId, professionalId: professionalProfile.id },
+    });
+
+    if (!slot) {
+      throw new NotFoundException('Availability slot not found');
+    }
+
+    await this._prisma.availabilitySlot.delete({
+      where: { id: slotId },
+    });
+
+    return { message: 'Availability slot deleted successfully' };
+  }
+
+  // ========== REVIEWS METHODS ==========
+
+  async getMyReviews(userId: string, query: ReviewQueryDto) {
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: { userId, deletedAt: null },
+    });
+
+    if (!professionalProfile) {
+      throw new NotFoundException('Professional profile not found for this user');
+    }
+
+    const page = query.page || 1;
+    const limit = query.limit || 10;
+    const skip = (page - 1) * limit;
+
+    const where: any = { professionalId: professionalProfile.id };
+    if (query.rating) where.rating = query.rating;
+    if (query.hasResponse !== undefined) {
+      where.professionalResponse = query.hasResponse ? { not: null } : null;
+    }
+
+    const orderBy: any = {};
+    if (query.orderBy === 'rating') {
+      orderBy.rating = query.orderDirection === 'asc' ? 'asc' : 'desc';
+    } else {
+      orderBy.createdAt = query.orderDirection === 'asc' ? 'asc' : 'desc';
+    }
+
+    const [reviews, total] = await Promise.all([
+      this._prisma.review.findMany({
+        where,
+        include: {
+          client: {
+            select: {
+              profile: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  avatar: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy,
+        skip,
+        take: limit,
+      }),
+      this._prisma.review.count({ where }),
+    ]);
+
+    return {
+      data: reviews.map((review) => ({
+        id: review.id,
+        rating: review.rating,
+        comment: review.comment,
+        professionalResponse: review.professionalResponse,
+        createdAt: review.createdAt,
+        user: {
+          id: review.client.id,
+          firstName: review.client.profile?.firstName || '',
+          lastName: review.client.profile?.lastName || '',
+          avatar: review.client.profile?.avatar,
+        },
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getMyReviewStats(userId: string) {
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: { userId, deletedAt: null },
+    });
+
+    if (!professionalProfile) {
+      throw new NotFoundException('Professional profile not found for this user');
+    }
+
+    const reviews = await this._prisma.review.findMany({
+      where: { professionalId: professionalProfile.id },
+      include: {
+        client: {
+          select: {
+            profile: {
+              select: {
+                firstName: true,
+                lastName: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+
+    const totalReviews = reviews.length;
+    const averageRating =
+      totalReviews > 0 ? reviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews : 0;
+
+    const ratingDistribution = {
+      5: reviews.filter((r) => r.rating === 5).length,
+      4: reviews.filter((r) => r.rating === 4).length,
+      3: reviews.filter((r) => r.rating === 3).length,
+      2: reviews.filter((r) => r.rating === 2).length,
+      1: reviews.filter((r) => r.rating === 1).length,
+    };
+
+    return {
+      totalReviews,
+      averageRating: Math.round(averageRating * 10) / 10,
+      ratingDistribution,
+      recentReviews: reviews.slice(0, 5).map((review) => ({
+        id: review.id,
+        rating: review.rating,
+        comment: review.comment,
+        professionalResponse: review.professionalResponse,
+        createdAt: review.createdAt,
+        user: {
+          id: review.client.id,
+          firstName: review.client.profile?.firstName || '',
+          lastName: review.client.profile?.lastName || '',
+          avatar: review.client.profile?.avatar,
+        },
+      })),
+    };
+  }
+
+  async respondToReview(userId: string, reviewId: string, responseDto: ReviewResponseDto) {
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: { userId, deletedAt: null },
+    });
+
+    if (!professionalProfile) {
+      throw new NotFoundException('Professional profile not found for this user');
+    }
+
+    const review = await this._prisma.review.findFirst({
+      where: { id: reviewId, professionalId: professionalProfile.id },
+    });
+
+    if (!review) {
+      throw new NotFoundException('Review not found');
+    }
+
+    return this._prisma.review.update({
+      where: { id: reviewId },
+      data: { professionalResponse: responseDto.response },
+    });
+  }
+
+  async getProfessionalReviews(professionalId: string, query: ReviewQueryDto) {
+    const page = query.page || 1;
+    const limit = query.limit || 10;
+    const skip = (page - 1) * limit;
+
+    const where: any = { professionalId };
+    if (query.rating) where.rating = query.rating;
+
+    const orderBy: any = {};
+    if (query.orderBy === 'rating') {
+      orderBy.rating = query.orderDirection === 'asc' ? 'asc' : 'desc';
+    } else {
+      orderBy.createdAt = query.orderDirection === 'asc' ? 'asc' : 'desc';
+    }
+
+    const [reviews, total] = await Promise.all([
+      this._prisma.review.findMany({
+        where,
+        include: {
+          client: {
+            select: {
+              profile: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  avatar: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy,
+        skip,
+        take: limit,
+      }),
+      this._prisma.review.count({ where }),
+    ]);
+
+    return {
+      data: reviews.map((review) => ({
+        id: review.id,
+        rating: review.rating,
+        comment: review.comment,
+        professionalResponse: review.professionalResponse,
+        createdAt: review.createdAt,
+        user: {
+          id: review.client.id,
+          firstName: review.client.profile?.firstName || '',
+          lastName: review.client.profile?.lastName || '',
+          avatar: review.client.profile?.avatar,
+        },
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  // ========== ANALYTICS METHODS ==========
+
+  async getMyAnalytics(userId: string, query: AnalyticsQueryDto) {
+    const bookingStats = await this.getBookingStats(userId, query);
+    const revenueStats = await this.getRevenueStats(userId, query);
+    const profileStats = await this.getProfileStats(userId, query);
+
+    const period = {
+      from: query.fromDate
+        ? new Date(query.fromDate)
+        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      to: query.toDate ? new Date(query.toDate) : new Date(),
+    };
+
+    return {
+      bookingStats,
+      revenueStats,
+      profileStats,
+      period,
+      lastUpdated: new Date(),
+    };
+  }
+
+  async getBookingStats(userId: string, query: AnalyticsQueryDto) {
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: { userId, deletedAt: null },
+    });
+
+    if (!professionalProfile) {
+      throw new NotFoundException('Professional profile not found for this user');
+    }
+
+    const fromDate = query.fromDate
+      ? new Date(query.fromDate)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const toDate = query.toDate ? new Date(query.toDate) : new Date();
+
+    const bookings = await this._prisma.booking.findMany({
+      where: {
+        professionalId: professionalProfile.id,
+        createdAt: { gte: fromDate, lte: toDate },
+      },
+    });
+
+    const totalBookings = bookings.length;
+    const completedBookings = bookings.filter((b) => b.meetingStatus === 'COMPLETED').length;
+    const cancelledBookings = bookings.filter((b) => b.meetingStatus === 'CANCELLED').length;
+    const pendingBookings = bookings.filter(
+      (b) =>
+        b.meetingStatus === 'PENDING_PAYMENT' || b.meetingStatus === 'WAITING_FOR_PROFESSIONAL',
+    ).length;
+    const completionRate = totalBookings > 0 ? (completedBookings / totalBookings) * 100 : 0;
+
+    return {
+      totalBookings,
+      completedBookings,
+      cancelledBookings,
+      pendingBookings,
+      completionRate: Math.round(completionRate * 10) / 10,
+      averageSessionDuration: professionalProfile.standardDuration,
+      bookingsByPeriod: [], // TODO: Implement period grouping
+    };
+  }
+
+  async getRevenueStats(userId: string, query: AnalyticsQueryDto) {
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: { userId, deletedAt: null },
+    });
+
+    if (!professionalProfile) {
+      throw new NotFoundException('Professional profile not found for this user');
+    }
+
+    const fromDate = query.fromDate
+      ? new Date(query.fromDate)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const toDate = query.toDate ? new Date(query.toDate) : new Date();
+
+    const completedBookings = await this._prisma.booking.findMany({
+      where: {
+        professionalId: professionalProfile.id,
+        meetingStatus: 'COMPLETED',
+        createdAt: { gte: fromDate, lte: toDate },
+      },
+    });
+
+    const totalRevenue = completedBookings.reduce(
+      (sum, booking) => sum + Number(booking.totalAmount),
+      0,
+    );
+    const averageSessionValue =
+      completedBookings.length > 0 ? totalRevenue / completedBookings.length : 0;
+
+    return {
+      totalRevenue,
+      revenueThisMonth: totalRevenue, // Simplified for now
+      revenueLastMonth: 0, // TODO: Calculate last month
+      averageSessionValue: Math.round(averageSessionValue * 100) / 100,
+      revenueByPeriod: [], // TODO: Implement period grouping
+      paymentMethodStats: {
+        mercadopago: totalRevenue,
+        other: 0,
+      },
+    };
+  }
+
+  async getProfileStats(userId: string, query: AnalyticsQueryDto) {
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: { userId, deletedAt: null },
+    });
+
+    if (!professionalProfile) {
+      throw new NotFoundException('Professional profile not found for this user');
+    }
+
+    return {
+      profileViews: 0, // TODO: Implement view tracking
+      profileViewsThisMonth: 0,
+      conversionRate: 0, // TODO: Calculate views to bookings
+      averageRating: professionalProfile.rating,
+      totalReviews: professionalProfile.reviewCount,
+      responseRate: 100, // TODO: Calculate actual response rate
+      averageResponseTime: 30, // TODO: Calculate actual response time in minutes
+    };
+  }
+
+  async getPopularTimes(userId: string, query: AnalyticsQueryDto) {
+    const professionalProfile = await this._prisma.professionalProfile.findFirst({
+      where: { userId, deletedAt: null },
+    });
+
+    if (!professionalProfile) {
+      throw new NotFoundException('Professional profile not found for this user');
+    }
+
+    // TODO: Implement actual analytics based on booking data
+    return {
+      dayOfWeek: [
+        { day: 'Monday', bookings: 5, percentage: 14.3 },
+        { day: 'Tuesday', bookings: 7, percentage: 20.0 },
+        { day: 'Wednesday', bookings: 6, percentage: 17.1 },
+        { day: 'Thursday', bookings: 8, percentage: 22.9 },
+        { day: 'Friday', bookings: 9, percentage: 25.7 },
+        { day: 'Saturday', bookings: 0, percentage: 0 },
+        { day: 'Sunday', bookings: 0, percentage: 0 },
+      ],
+      hourOfDay: [
+        { hour: 9, bookings: 3, percentage: 8.6 },
+        { hour: 10, bookings: 5, percentage: 14.3 },
+        { hour: 11, bookings: 6, percentage: 17.1 },
+        { hour: 14, bookings: 8, percentage: 22.9 },
+        { hour: 15, bookings: 7, percentage: 20.0 },
+        { hour: 16, bookings: 6, percentage: 17.1 },
+      ],
+      monthOfYear: [
+        { month: 'January', bookings: 10, percentage: 16.7 },
+        { month: 'February', bookings: 8, percentage: 13.3 },
+        { month: 'March', bookings: 12, percentage: 20.0 },
+        { month: 'April', bookings: 15, percentage: 25.0 },
+        { month: 'May', bookings: 9, percentage: 15.0 },
+        { month: 'June', bookings: 6, percentage: 10.0 },
+      ],
     };
   }
 }

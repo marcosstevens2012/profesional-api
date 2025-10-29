@@ -133,7 +133,7 @@ export class BookingsService {
     return updatedBooking;
   }
 
-  // Profesional acepta la reunión
+  // Profesional acepta la reunión (confirma que está listo)
   async acceptMeeting(bookingId: string, professionalUserId: string) {
     const booking = await this.findOne(bookingId);
 
@@ -142,8 +142,17 @@ export class BookingsService {
       throw new ForbiddenException('Not authorized to accept this meeting');
     }
 
+    // Verificar que está en estado correcto
+    if (booking.status !== BookingStatus.WAITING_FOR_PROFESSIONAL) {
+      throw new BadRequestException(
+        `Booking is not waiting for professional acceptance. Current status: ${booking.status}`,
+      );
+    }
+
     if (booking.meetingStatus !== MeetingStatus.WAITING) {
-      throw new BadRequestException('Meeting is not waiting for acceptance');
+      throw new BadRequestException(
+        `Meeting is not waiting for acceptance. Current status: ${booking.meetingStatus}`,
+      );
     }
 
     // Verificar que el profesional no tenga más de 1 reunión activa + 1 en cola
@@ -156,32 +165,51 @@ export class BookingsService {
     }
 
     const now = new Date();
-    const meetingEndTime = new Date(now.getTime() + 18 * 60 * 1000); // 18 minutos después
 
+    // Actualizar booking a CONFIRMED (listo para unirse, pero aún no iniciado)
     const updatedBooking = await this.prisma.booking.update({
       where: { id: bookingId },
       data: {
-        meetingStatus: MeetingStatus.ACTIVE,
-        meetingStartTime: now,
-        meetingEndTime: meetingEndTime,
+        status: BookingStatus.CONFIRMED,
+        meetingStatus: MeetingStatus.WAITING, // Se mantiene en WAITING hasta que alguien se una
         meetingAcceptedAt: now,
-        status: BookingStatus.IN_PROGRESS,
+        updatedAt: now,
       },
       include: {
-        client: { select: { id: true, email: true } },
+        client: { select: { id: true, email: true, name: true } },
         professional: { select: { id: true, name: true, email: true } },
       },
     });
 
-    // Programar finalización automática en 18 minutos
-    setTimeout(
-      () => {
-        this.endMeetingAutomatically(bookingId);
+    // Crear notificación para el CLIENTE
+    await this.prisma.notification.create({
+      data: {
+        userId: booking.clientId,
+        type: 'BOOKING_CONFIRMED',
+        title: 'Consulta confirmada',
+        message: `${booking.professional.name} ha aceptado tu solicitud de consulta. Ya puedes unirte a la videollamada.`,
+        payload: {
+          bookingId: booking.id,
+          professionalName: booking.professional.name,
+          jitsiRoom: booking.jitsiRoom,
+          canJoinNow: true,
+        },
       },
-      18 * 60 * 1000,
-    );
+    });
 
-    return updatedBooking;
+    console.log('✅ Notification created for client', {
+      client_id: booking.clientId,
+      booking_id: bookingId,
+    });
+
+    // TODO: Enviar email al cliente notificando que puede unirse
+
+    return {
+      ...updatedBooking,
+      canJoinMeeting: true,
+      jitsiRoom: updatedBooking.jitsiRoom,
+      message: 'Booking confirmed. Both parties can now join the meeting.',
+    };
   }
 
   // Obtener estado de reunión
@@ -211,14 +239,79 @@ export class BookingsService {
       throw new ForbiddenException('Not authorized to join this meeting');
     }
 
-    if (booking.meetingStatus !== MeetingStatus.ACTIVE) {
-      throw new BadRequestException('Meeting is not active');
+    // Permitir unirse si está CONFIRMED (profesional aceptó) o ya está ACTIVE
+    if (
+      booking.status !== BookingStatus.CONFIRMED &&
+      booking.status !== BookingStatus.IN_PROGRESS
+    ) {
+      throw new BadRequestException(
+        `Meeting is not ready to join. Current status: ${booking.status}`,
+      );
     }
 
     return {
       canJoin: true,
       jitsiRoom: booking.jitsiRoom,
       role: isClient ? 'client' : 'professional',
+      meetingStatus: booking.meetingStatus,
+      bookingStatus: booking.status,
+    };
+  }
+
+  // Nuevo método: Iniciar la reunión cuando alguien se une
+  async startMeeting(bookingId: string, userId: string) {
+    const booking = await this.findOne(bookingId);
+
+    const isClient = booking.clientId === userId;
+    const isProfessional = booking.professional.user?.id === userId;
+
+    if (!isClient && !isProfessional) {
+      throw new ForbiddenException('Not authorized to start this meeting');
+    }
+
+    // Solo permitir iniciar si está CONFIRMED
+    if (booking.status !== BookingStatus.CONFIRMED) {
+      throw new BadRequestException(`Meeting cannot be started. Current status: ${booking.status}`);
+    }
+
+    const now = new Date();
+    const meetingEndTime = new Date(now.getTime() + 18 * 60 * 1000); // 18 minutos después
+
+    const updatedBooking = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        meetingStatus: MeetingStatus.ACTIVE,
+        status: BookingStatus.IN_PROGRESS,
+        meetingStartTime: now,
+        meetingEndTime: meetingEndTime,
+        updatedAt: now,
+      },
+      include: {
+        client: { select: { id: true, email: true, name: true } },
+        professional: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    console.log('✅ Meeting started', {
+      booking_id: bookingId,
+      started_by: isClient ? 'client' : 'professional',
+      end_time: meetingEndTime,
+    });
+
+    // Programar finalización automática en 18 minutos
+    setTimeout(
+      () => {
+        this.endMeetingAutomatically(bookingId);
+      },
+      18 * 60 * 1000,
+    );
+
+    return {
+      ...updatedBooking,
+      jitsiRoom: updatedBooking.jitsiRoom,
+      meetingStartTime: updatedBooking.meetingStartTime,
+      meetingEndTime: updatedBooking.meetingEndTime,
+      remainingTime: 18 * 60 * 1000, // 18 minutos en ms
     };
   }
 
@@ -315,6 +408,101 @@ export class BookingsService {
     return {
       meetings,
       count: meetings.length,
+    };
+  }
+
+  // Nuevo método: Obtener bookings esperando aceptación del profesional
+  async getWaitingBookings(professionalUserId: string) {
+    const professionalProfile = await this.prisma.professionalProfile.findUnique({
+      where: { userId: professionalUserId },
+      select: { id: true, name: true },
+    });
+
+    if (!professionalProfile) {
+      throw new NotFoundException('Professional profile not found');
+    }
+
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        professionalId: professionalProfile.id,
+        status: BookingStatus.WAITING_FOR_PROFESSIONAL,
+        meetingStatus: MeetingStatus.WAITING,
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        payment: {
+          select: {
+            id: true,
+            amount: true,
+            status: true,
+            paidAt: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc', // Primero los más antiguos
+      },
+    });
+
+    return {
+      bookings,
+      count: bookings.length,
+      message: `${bookings.length} booking(s) waiting for your acceptance`,
+    };
+  }
+
+  // Nuevo método: Obtener bookings del cliente
+  async getClientBookings(clientId: string) {
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        clientId,
+      },
+      include: {
+        professional: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            bio: true,
+            pricePerSession: true,
+          },
+        },
+        payment: {
+          select: {
+            id: true,
+            amount: true,
+            status: true,
+            paidAt: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc', // Más recientes primero
+      },
+    });
+
+    // Agrupar por estado
+    const grouped = {
+      pending_payment: bookings.filter((b) => b.status === BookingStatus.PENDING_PAYMENT),
+      waiting_acceptance: bookings.filter(
+        (b) => b.status === BookingStatus.WAITING_FOR_PROFESSIONAL,
+      ),
+      confirmed: bookings.filter((b) => b.status === BookingStatus.CONFIRMED),
+      in_progress: bookings.filter((b) => b.status === BookingStatus.IN_PROGRESS),
+      completed: bookings.filter((b) => b.status === BookingStatus.COMPLETED),
+      cancelled: bookings.filter((b) => b.status === BookingStatus.CANCELLED),
+    };
+
+    return {
+      bookings,
+      count: bookings.length,
+      grouped,
     };
   }
 

@@ -53,6 +53,13 @@ export class BookingsController {
     return this._bookingsService.acceptMeeting(id, req.user.userId);
   }
 
+  @Post(':id/start-meeting')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Start meeting (when user joins video call)' })
+  startMeeting(@Param('id') id: string, @Req() req: any) {
+    return this._bookingsService.startMeeting(id, req.user.userId);
+  }
+
   @Get(':id/join-meeting')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Check if user can join meeting and get room info' })
@@ -75,6 +82,22 @@ export class BookingsController {
   @ApiOperation({ summary: "Get professional's pending meetings" })
   getProfessionalMeetings(@Req() req: any) {
     return this._bookingsService.getProfessionalPendingMeetings(req.user.userId);
+  }
+
+  @Get('professional/waiting-bookings')
+  @UseGuards(JwtAuthGuard)
+  @Roles(Role.PROFESSIONAL)
+  @ApiOperation({ summary: "Get professional's bookings waiting for acceptance" })
+  getWaitingBookings(@Req() req: any) {
+    return this._bookingsService.getWaitingBookings(req.user.userId);
+  }
+
+  @Get('client/my-bookings')
+  @UseGuards(JwtAuthGuard)
+  @Roles(Role.CLIENT)
+  @ApiOperation({ summary: "Get client's bookings" })
+  getClientBookings(@Req() req: any) {
+    return this._bookingsService.getClientBookings(req.user.userId);
   }
 
   @Delete(':id')

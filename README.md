@@ -2,9 +2,24 @@
 
 Backend API for the Profesional platform built with NestJS, Prisma, and PostgreSQL.
 
+## 🎉 **NUEVA ACTUALIZACIÓN: Sistema de Bookings con Videollamadas**
+
+✅ **Sistema completo implementado** (Octubre 2025)
+
+- Flujo de bookings end-to-end
+- Aceptación de consultas por profesionales
+- Videollamadas con Jitsi Meet
+- Notificaciones automáticas
+- Timer de 18 minutos
+
+📚 **[Ver documentación completa →](./INDEX.md)**
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - Node.js >= 20.0.0
 - pnpm >= 8.0.0
 - PostgreSQL database
@@ -29,6 +44,23 @@ pnpm prisma:push
 pnpm dev
 ```
 
+## 📚 Documentación
+
+### Sistema de Bookings (Nuevo)
+
+- **[INDEX.md](./INDEX.md)** - Índice completo de documentación
+- **[RESUMEN-EJECUTIVO.md](./RESUMEN-EJECUTIVO.md)** - Vista general del sistema
+- **[BOOKING-FLOW-FRONTEND.md](./BOOKING-FLOW-FRONTEND.md)** - Guía de implementación frontend
+- **[BOOKING-BACKEND-SUMMARY.md](./BOOKING-BACKEND-SUMMARY.md)** - Arquitectura backend
+- **[HTTP-REQUESTS.md](./HTTP-REQUESTS.md)** - Colección de requests para testing
+
+### Testing
+
+```bash
+# Testear flujo completo de bookings
+./test-booking-flow.sh
+```
+
 ## 📦 Scripts
 
 - `pnpm dev` - Start development server with hot reload
@@ -46,7 +78,8 @@ pnpm dev
 - **PostgreSQL** - Database
 - **Supabase** - Auth & Storage
 - **JWT** - Authentication
-- **Socket.io** - Real-time communication
+- **MercadoPago** - Payment gateway
+- **Jitsi Meet** - Video calling
 
 ## 📝 Environment Variables
 
