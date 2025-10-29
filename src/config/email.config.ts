@@ -8,6 +8,8 @@ export interface EmailConfig {
   password: string;
   from: string;
   baseUrl: string;
+  resendApiKey: string;
+  useMock: boolean;
 }
 
 export default registerAs(
@@ -20,5 +22,7 @@ export default registerAs(
     password: process.env.EMAIL_PASSWORD || '',
     from: process.env.EMAIL_FROM || 'noreply@profesional.app',
     baseUrl: process.env.BASE_URL || 'http://localhost:3000',
+    resendApiKey: process.env.RESEND_API_KEY || '',
+    useMock: process.env.EMAIL_USE_MOCK === 'true',
   }),
 );

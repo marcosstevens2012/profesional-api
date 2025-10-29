@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Resend } from 'resend';
 import { EmailConfig } from '../../config/email.config';
 
 export interface SendEmailParams {
@@ -13,28 +14,71 @@ export interface SendEmailParams {
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private readonly emailConfig: EmailConfig;
+  private readonly resend: Resend | null;
 
   constructor(configService: ConfigService) {
     this.emailConfig = configService.get<EmailConfig>('email')!;
+
+    // Inicializar Resend solo si tenemos API key y no estamos en modo mock
+    if (this.emailConfig.resendApiKey && !this.emailConfig.useMock) {
+      this.resend = new Resend(this.emailConfig.resendApiKey);
+      this.logger.log('✅ Resend email service initialized');
+    } else {
+      this.resend = null;
+      this.logger.warn('⚠️  Using MOCK email service (set RESEND_API_KEY to use real emails)');
+    }
   }
 
   /**
-   * Send email (mock implementation for development)
-   * In production, integrate with SendGrid, AWS SES, or similar service
+   * Send email using Resend or mock implementation
    */
   async sendEmail(params: SendEmailParams): Promise<void> {
     const { to, subject, html, text } = params;
 
-    // Mock implementation - log email details
+    // Si estamos usando mock o no hay Resend configurado
+    if (!this.resend || this.emailConfig.useMock) {
+      return this.sendMockEmail(params);
+    }
+
+    try {
+      // Preparar payload para Resend
+      const emailPayload = {
+        from: this.emailConfig.from,
+        to: [to],
+        subject,
+        html: html || '',
+        text: text || '',
+      };
+
+      const { data, error } = await this.resend.emails.send(emailPayload);
+
+      if (error) {
+        this.logger.error(`❌ Error sending email via Resend:`, error);
+        throw new Error(`Failed to send email: ${error.message}`);
+      }
+
+      this.logger.log(`✅ Email sent successfully via Resend to ${to} (ID: ${data?.id})`);
+    } catch (error) {
+      this.logger.error(`❌ Failed to send email via Resend:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Mock email implementation for development
+   */
+  private async sendMockEmail(params: SendEmailParams): Promise<void> {
+    const { to, subject, html, text } = params;
+
     this.logger.log(`📧 [MOCK EMAIL] Sending email:`);
     this.logger.log(`   To: ${to}`);
     this.logger.log(`   Subject: ${subject}`);
     this.logger.log(`   From: ${this.emailConfig.from}`);
     if (html) {
-      this.logger.log(`   HTML Content: ${html}`);
+      this.logger.log(`   HTML Content: ${html.substring(0, 200)}...`);
     }
     if (text) {
-      this.logger.log(`   Text Content: ${text}`);
+      this.logger.log(`   Text Content: ${text.substring(0, 200)}...`);
     }
 
     // Simulate async operation

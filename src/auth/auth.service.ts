@@ -78,6 +78,39 @@ export class AuthService {
         },
       });
 
+      // Si el usuario es profesional, crear el ProfessionalProfile vacío
+      if (role.toUpperCase() === 'PROFESSIONAL') {
+        // Buscar una categoría por defecto (la primera disponible)
+        const defaultCategory = await tx.serviceCategory.findFirst({
+          orderBy: { order: 'asc' },
+        });
+
+        // Buscar una ubicación por defecto
+        const defaultLocation = await tx.location.findFirst();
+
+        if (!defaultCategory || !defaultLocation) {
+          throw new InternalServerErrorException(
+            'No se encontraron categorías o ubicaciones disponibles. Contacte al administrador.',
+          );
+        }
+
+        await tx.professionalProfile.create({
+          data: {
+            userId: newUser.id,
+            email: email,
+            name: name,
+            bio: null,
+            description: null,
+            pricePerSession: 25000.0, // Precio por defecto
+            standardDuration: 60, // 60 minutos por defecto
+            serviceCategoryId: defaultCategory.id,
+            locationId: defaultLocation.id,
+            isVerified: false, // Se verificará cuando el usuario complete su perfil
+            isActive: false, // Inactivo hasta que complete el perfil
+          },
+        });
+      }
+
       // Create email verification token
       const verificationToken = crypto.randomUUID();
       await tx.verificationToken.create({
