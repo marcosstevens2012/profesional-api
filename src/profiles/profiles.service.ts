@@ -27,16 +27,45 @@ export class ProfilesService {
     };
   }
 
-  async getMyProfile(userId: string): Promise<Profile> {
-    const profile = await this._prisma.profile.findUnique({
-      where: { userId },
+  async getMyProfile(userId: string): Promise<any> {
+    // Obtener el usuario con sus perfiles
+    const user = await this._prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: true,
+        professionalProfile: {
+          include: {
+            serviceCategory: true,
+            location: true,
+          },
+        },
+      },
     });
 
-    if (!profile) {
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Si es profesional y tiene perfil profesional, devolver ese
+    if (user.role === 'PROFESSIONAL' && user.professionalProfile) {
+      return {
+        ...user.professionalProfile,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          status: user.status,
+        },
+      };
+    }
+
+    // Si no es profesional, devolver el perfil básico
+    if (!user.profile) {
       throw new NotFoundException('Profile not found for this user');
     }
 
-    return profile;
+    return user.profile;
   }
 
   async updateMyProfile(userId: string, updateProfileDto: UpdateProfileDto): Promise<Profile> {
