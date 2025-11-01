@@ -9,9 +9,12 @@ import {
   Put,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { EmailVerifiedGuard, Public, Role, Roles } from '../common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AnalyticsQueryDto } from './dto/analytics.dto';
@@ -51,6 +54,34 @@ export class ProfilesController {
   @ApiOperation({ summary: 'Update current user profile' })
   updateMyProfile(@Req() req: any, @Body() updateProfileDto: UpdateProfileDto) {
     return this._profilesService.updateMyProfile(req.user.userId, updateProfileDto);
+  }
+
+  @Post('me/upload-document')
+  @UseGuards(JwtAuthGuard)
+  @Roles(Role.PROFESSIONAL)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload professional title document' })
+  async uploadDocument(@Req() req: any, @UploadedFile() file: Express.Multer.File | undefined) {
+    if (!file) {
+      throw new Error('No file provided');
+    }
+
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      throw new Error('Invalid file type. Only JPEG, PNG, WEBP, and PDF are allowed');
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error('File size exceeds 10MB limit');
+    }
+
+    return this._profilesService.uploadProfessionalDocument(
+      req.user.userId,
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+    );
   }
 
   @Get()

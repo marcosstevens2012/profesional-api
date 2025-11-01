@@ -61,6 +61,19 @@ model Profile {
   lastName  String
   avatar    String? // URL to avatar image
   phone     String?
+  
+  // Campos adicionales para clientes
+  bio           String? // Bio personal del cliente
+  dateOfBirth   DateTime? // Fecha de nacimiento
+  gender        String? // Género (opcional)
+  address       String? // Dirección
+  city          String? // Ciudad
+  province      String? // Provincia
+  postalCode    String? // Código postal
+  country       String? @default("Argentina") // País
+  emergencyContactName  String? // Nombre de contacto de emergencia
+  emergencyContactPhone String? // Teléfono de contacto de emergencia
+  preferences   Json? // Preferencias del cliente (JSON flexible)
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -68,6 +81,8 @@ model Profile {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([city])
+  @@index([province])
   @@map("profiles")
 }
 
@@ -114,7 +129,7 @@ model ProfessionalProfile {
   bio               String? // Bio corta
   description       String? // Descripción larga
   pricePerSession   Decimal  @default(25000.00) @db.Decimal(10, 2)
-  standardDuration  Int // Duración en minutos
+  standardDuration  Int      @default(60) // Duración en minutos
   serviceCategoryId String
   tags              String[] // Array de tags
   locationId        String
@@ -124,6 +139,22 @@ model ProfessionalProfile {
   isActive          Boolean  @default(true)
   brandId           String? // Para futuro white-label
 
+  // Información adicional del profesional
+  avatar            String? // URL del avatar del profesional
+  phone             String? // Teléfono profesional
+  website           String? // Sitio web profesional
+  linkedIn          String? // Perfil de LinkedIn
+  instagram         String? // Perfil de Instagram
+  facebook          String? // Perfil de Facebook
+  twitter           String? // Perfil de Twitter
+  
+  // Educación y experiencia
+  education         String? // Educación/formación
+  experience        String? // Experiencia profesional
+  specialties       String[] @default([]) // Especialidades
+  languages         String[] @default([]) // Idiomas que habla
+  yearsOfExperience Int? // Años de experiencia
+  
   // Documentación y validación profesional
   dni               String? // DNI obligatorio
   cuitCuil          String? // CUIT/CUIL obligatorio

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Profile } from '@prisma/client';
+import { StorageService } from '../common/services/storage.service';
 import { PrismaService } from '../database/prisma.service';
 import { AnalyticsQueryDto } from './dto/analytics.dto';
 import {
@@ -16,7 +17,10 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class ProfilesService {
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(
+    private readonly _prisma: PrismaService,
+    private readonly _storageService: StorageService,
+  ) {}
 
   async create(createProfileDto: any): Promise<any> {
     // This would be for creating professional profiles
@@ -81,71 +85,175 @@ export class ProfilesService {
       throw new NotFoundException('Profile not found for this user');
     }
 
-    // Separar campos entre Profile, ProfessionalProfile y User
+    // Separar campos entre Profile (clientes y profesionales) y ProfessionalProfile (solo profesionales)
     const {
+      // Campos de Profile (comunes)
       firstName,
       lastName,
+      avatar,
+      phone,
       bio,
+      dateOfBirth,
+      gender,
+      address,
+      city,
+      province,
+      postalCode,
+      country,
+      emergencyContactName,
+      emergencyContactPhone,
+
+      // Campos específicos de ProfessionalProfile
+      email,
+      name,
       description,
       pricePerSession,
       standardDuration,
       serviceCategoryId,
       tags,
       locationId,
-      phone,
       isActive,
-      email,
-      name,
-      avatar,
+      website,
+      linkedIn,
+      instagram,
+      facebook,
+      twitter,
+      education,
+      experience,
+      specialties,
+      languages,
+      yearsOfExperience,
       dni,
       cuitCuil,
       matricula,
       titleDocumentUrl,
-      // website y location no existen en el schema actual, los ignoramos por ahora
-      website: _website,
-      location: _location,
-      ...profileFields
     } = updateProfileDto;
 
     // Actualizar en una transacción
     return this._prisma.$transaction(async (tx) => {
-      // 1. Actualizar Profile (tabla básica)
+      // 1. Actualizar Profile (tabla básica) - TODOS los usuarios tienen esto
+      const profileUpdateData: any = {};
+
+      if (firstName !== undefined) profileUpdateData.firstName = firstName;
+      if (lastName !== undefined) profileUpdateData.lastName = lastName;
+      if (avatar !== undefined) profileUpdateData.avatar = avatar;
+      if (phone !== undefined) profileUpdateData.phone = phone;
+      if (bio !== undefined) profileUpdateData.bio = bio;
+      if (dateOfBirth !== undefined) profileUpdateData.dateOfBirth = new Date(dateOfBirth);
+      if (gender !== undefined) profileUpdateData.gender = gender;
+      if (address !== undefined) profileUpdateData.address = address;
+      if (city !== undefined) profileUpdateData.city = city;
+      if (province !== undefined) profileUpdateData.province = province;
+      if (postalCode !== undefined) profileUpdateData.postalCode = postalCode;
+      if (country !== undefined) profileUpdateData.country = country;
+      if (emergencyContactName !== undefined)
+        profileUpdateData.emergencyContactName = emergencyContactName;
+      if (emergencyContactPhone !== undefined)
+        profileUpdateData.emergencyContactPhone = emergencyContactPhone;
+
       const updatedProfile = await tx.profile.update({
         where: { userId },
-        data: {
-          ...(firstName && { firstName }),
-          ...(lastName && { lastName }),
-          ...(phone && { phone }),
-          ...(avatar && { avatar }),
-          ...profileFields,
-        },
+        data: profileUpdateData,
       });
 
       // 2. Si el usuario es profesional, actualizar ProfessionalProfile
       if (user.role === 'PROFESSIONAL' && user.professionalProfile) {
-        await tx.professionalProfile.update({
-          where: { userId },
-          data: {
-            ...(email && { email }),
-            ...(name && { name }),
-            ...(bio && { bio }),
-            ...(description && { description }),
-            ...(pricePerSession && { pricePerSession }),
-            ...(standardDuration && { standardDuration }),
-            ...(serviceCategoryId && { serviceCategoryId }),
-            ...(tags && { tags }),
-            ...(locationId && { locationId }),
-            ...(isActive !== undefined && { isActive }),
-            ...(dni && { dni }),
-            ...(cuitCuil && { cuitCuil }),
-            ...(matricula && { matricula }),
-            ...(titleDocumentUrl && { titleDocumentUrl }),
-          },
-        });
+        const professionalUpdateData: any = {};
+
+        if (email !== undefined) professionalUpdateData.email = email;
+        if (name !== undefined) professionalUpdateData.name = name;
+        if (description !== undefined) professionalUpdateData.description = description;
+        if (pricePerSession !== undefined) professionalUpdateData.pricePerSession = pricePerSession;
+        if (standardDuration !== undefined)
+          professionalUpdateData.standardDuration = standardDuration;
+        if (serviceCategoryId !== undefined)
+          professionalUpdateData.serviceCategoryId = serviceCategoryId;
+        if (tags !== undefined) professionalUpdateData.tags = tags;
+        if (locationId !== undefined) professionalUpdateData.locationId = locationId;
+        if (isActive !== undefined) professionalUpdateData.isActive = isActive;
+        if (avatar !== undefined) professionalUpdateData.avatar = avatar;
+        if (phone !== undefined) professionalUpdateData.phone = phone;
+        if (website !== undefined) professionalUpdateData.website = website;
+        if (linkedIn !== undefined) professionalUpdateData.linkedIn = linkedIn;
+        if (instagram !== undefined) professionalUpdateData.instagram = instagram;
+        if (facebook !== undefined) professionalUpdateData.facebook = facebook;
+        if (twitter !== undefined) professionalUpdateData.twitter = twitter;
+        if (education !== undefined) professionalUpdateData.education = education;
+        if (experience !== undefined) professionalUpdateData.experience = experience;
+        if (specialties !== undefined) professionalUpdateData.specialties = specialties;
+        if (languages !== undefined) professionalUpdateData.languages = languages;
+        if (yearsOfExperience !== undefined)
+          professionalUpdateData.yearsOfExperience = yearsOfExperience;
+        if (dni !== undefined) professionalUpdateData.dni = dni;
+        if (cuitCuil !== undefined) professionalUpdateData.cuitCuil = cuitCuil;
+        if (matricula !== undefined) professionalUpdateData.matricula = matricula;
+        if (titleDocumentUrl !== undefined)
+          professionalUpdateData.titleDocumentUrl = titleDocumentUrl;
+
+        // Solo actualizar si hay datos para actualizar
+        if (Object.keys(professionalUpdateData).length > 0) {
+          await tx.professionalProfile.update({
+            where: { userId },
+            data: professionalUpdateData,
+          });
+        }
       }
 
       return updatedProfile;
     });
+  }
+
+  async uploadProfessionalDocument(
+    userId: string,
+    fileBuffer: Buffer,
+    fileName: string,
+    fileType: string,
+  ): Promise<{ url: string }> {
+    // Get the user to ensure they exist and are a professional
+    const user = await this._prisma.user.findUnique({
+      where: { id: userId },
+      include: { professionalProfile: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.role !== 'PROFESSIONAL') {
+      throw new Error('Only professionals can upload documents');
+    }
+
+    if (!user.professionalProfile) {
+      throw new NotFoundException('Professional profile not found');
+    }
+
+    // If there's an existing document, delete it first
+    if (user.professionalProfile.titleDocumentUrl) {
+      try {
+        await this._storageService.deleteProfessionalDocument(
+          user.professionalProfile.titleDocumentUrl,
+        );
+      } catch (error) {
+        // Log but don't fail if old file deletion fails
+        console.error('Error deleting old document:', error);
+      }
+    }
+
+    // Upload the new document
+    const url = await this._storageService.uploadProfessionalDocument(
+      userId,
+      fileBuffer,
+      fileName,
+      fileType,
+    );
+
+    // Update the professional profile with the new document URL
+    await this._prisma.professionalProfile.update({
+      where: { id: user.professionalProfile.id },
+      data: { titleDocumentUrl: url },
+    });
+
+    return { url };
   }
 
   async findAll(query: any) {
