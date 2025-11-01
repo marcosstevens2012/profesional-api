@@ -97,6 +97,10 @@ export class ProfilesService {
       email,
       name,
       avatar,
+      dni,
+      cuitCuil,
+      matricula,
+      titleDocumentUrl,
       // website y location no existen en el schema actual, los ignoramos por ahora
       website: _website,
       location: _location,
@@ -132,6 +136,10 @@ export class ProfilesService {
             ...(tags && { tags }),
             ...(locationId && { locationId }),
             ...(isActive !== undefined && { isActive }),
+            ...(dni && { dni }),
+            ...(cuitCuil && { cuitCuil }),
+            ...(matricula && { matricula }),
+            ...(titleDocumentUrl && { titleDocumentUrl }),
           },
         });
       }

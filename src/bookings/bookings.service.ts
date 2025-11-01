@@ -382,12 +382,21 @@ export class BookingsService {
       throw new NotFoundException('Professional profile not found');
     }
 
-    // Obtener reuniones pendientes y en espera para este profesional
+    // Obtener solo reuniones CONFIRMADAS (pagadas y aceptadas) o ACTIVAS
+    // NO incluir PENDING ni WAITING sin pago confirmado
     const meetings = await this.prisma.booking.findMany({
       where: {
         professionalId: professionalProfile.id,
+        // Solo mostrar si están confirmadas o activas
+        status: {
+          in: [BookingStatus.CONFIRMED, BookingStatus.IN_PROGRESS],
+        },
         meetingStatus: {
-          in: [MeetingStatus.PENDING, MeetingStatus.WAITING, MeetingStatus.ACTIVE],
+          in: [MeetingStatus.WAITING, MeetingStatus.ACTIVE],
+        },
+        // Asegurar que hay un pago aprobado
+        payment: {
+          status: 'APPROVED',
         },
       },
       include: {
@@ -403,9 +412,17 @@ export class BookingsService {
             },
           },
         },
+        payment: {
+          select: {
+            id: true,
+            amount: true,
+            status: true,
+            paidAt: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'asc', // Más antiguas primero
+        scheduledAt: 'asc', // Próximas reuniones primero
       },
     });
 
@@ -431,6 +448,10 @@ export class BookingsService {
         professionalId: professionalProfile.id,
         status: BookingStatus.WAITING_FOR_PROFESSIONAL,
         meetingStatus: MeetingStatus.WAITING,
+        // Asegurarse de que existe un pago y está aprobado
+        payment: {
+          status: 'APPROVED',
+        },
       },
       include: {
         client: {

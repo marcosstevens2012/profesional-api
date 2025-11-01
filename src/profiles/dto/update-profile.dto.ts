@@ -93,6 +93,33 @@ export class UpdateProfileDto {
   @IsBoolean()
   isActive?: boolean;
 
+  // Documentación y validación profesional
+  @ApiProperty({ required: false, description: 'DNI number (obligatorio)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  dni?: string;
+
+  @ApiProperty({ required: false, description: 'CUIT/CUIL number (obligatorio)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  cuitCuil?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Professional license/registration number (optional)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  matricula?: string;
+
+  @ApiProperty({ required: false, description: 'Title document URL (photo/PDF) (optional)' })
+  @IsOptional()
+  @IsUrl()
+  titleDocumentUrl?: string;
+
   // User-related fields (for backward compatibility)
   @ApiProperty({ required: false, description: 'First name (user field)' })
   @IsOptional()

@@ -124,6 +124,12 @@ model ProfessionalProfile {
   isActive          Boolean  @default(true)
   brandId           String? // Para futuro white-label
 
+  // Documentación y validación profesional
+  dni               String? // DNI obligatorio
+  cuitCuil          String? // CUIT/CUIL obligatorio
+  matricula         String? // Número de matrícula profesional (opcional)
+  titleDocumentUrl  String? // URL del documento del título (foto/PDF) (opcional)
+  
   // MercadoPago credentials - Por ahora NO se usan para split, solo informativo
   mercadoPagoEmail  String? // Email de cuenta MP del profesional
   mercadoPagoUserId String? // MP User ID (para futuro marketplace split)
@@ -148,6 +154,8 @@ model ProfessionalProfile {
   @@index([rating])
   @@index([tags])
   @@index([brandId])
+  @@index([dni])
+  @@index([cuitCuil])
   @@map("professional_profiles")
 }
 
