@@ -226,7 +226,11 @@ export class AuthService {
       }
 
       // Log and wrap any other errors
-      this.logger.error('Unexpected error during login:', error);
+      this.logger.error('Unexpected error during login:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        error,
+      });
       throw new InternalServerErrorException('Error al procesar el inicio de sesión');
     }
   }
@@ -519,7 +523,12 @@ export class AuthService {
         expiresIn: 15 * 60, // 15 minutes in seconds
       };
     } catch (error) {
-      this.logger.error('Error generating tokens:', error);
+      this.logger.error('Error generating tokens:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        userId: payload.sub,
+        error,
+      });
       throw new InternalServerErrorException('Error al generar tokens de autenticación');
     }
   }
