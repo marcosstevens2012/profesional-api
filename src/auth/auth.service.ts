@@ -225,12 +225,18 @@ export class AuthService {
         throw error;
       }
 
-      // Log and wrap any other errors
+      // Log complete error details
       this.logger.error('Unexpected error during login:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
+        errorType: error?.constructor?.name,
+        message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        error,
+        email: dto?.email,
+        errorDetails: error,
       });
+
+      // Also log to console for debugging
+      console.error('LOGIN ERROR DETAILS:', error);
+
       throw new InternalServerErrorException('Error al procesar el inicio de sesión');
     }
   }
@@ -524,11 +530,21 @@ export class AuthService {
       };
     } catch (error) {
       this.logger.error('Error generating tokens:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
+        errorType: error?.constructor?.name,
+        message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        userId: payload.sub,
-        error,
+        userId: payload?.sub,
+        configCheck: {
+          hasSecret: !!this.jwtConfig?.secret,
+          hasRefreshSecret: !!this.jwtConfig?.refreshSecret,
+          accessExpiresIn: this.jwtConfig?.accessTokenExpiresIn,
+          refreshExpiresIn: this.jwtConfig?.refreshTokenExpiresIn,
+        },
+        errorDetails: error,
       });
+
+      console.error('TOKEN GENERATION ERROR:', error);
+
       throw new InternalServerErrorException('Error al generar tokens de autenticación');
     }
   }

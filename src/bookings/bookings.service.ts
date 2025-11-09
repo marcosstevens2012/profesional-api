@@ -497,10 +497,29 @@ export class BookingsService {
         professional: {
           select: {
             id: true,
-            name: true,
             email: true,
             bio: true,
             pricePerSession: true,
+            userId: true,
+            user: {
+              select: {
+                id: true,
+                email: true,
+                profile: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                    avatar: true,
+                  },
+                },
+              },
+            },
+            serviceCategory: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
         payment: {
@@ -532,6 +551,94 @@ export class BookingsService {
     return {
       bookings,
       count: bookings.length,
+      grouped,
+    };
+  }
+
+  async getProfessionalBookings(professionalUserId: string) {
+    const professionalProfile = await this.prisma.professionalProfile.findUnique({
+      where: { userId: professionalUserId },
+      select: { id: true },
+    });
+
+    if (!professionalProfile) {
+      throw new NotFoundException('Professional profile not found');
+    }
+
+    // Primero obtener TODAS las bookings para debug
+    const allBookings = await this.prisma.booking.findMany({
+      where: {
+        professionalId: professionalProfile.id,
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            email: true,
+            profile: {
+              select: {
+                firstName: true,
+                lastName: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+        payment: {
+          select: {
+            id: true,
+            amount: true,
+            status: true,
+            paidAt: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    console.log('🔍 DEBUG getProfessionalBookings:');
+    console.log('Professional ID:', professionalProfile.id);
+    console.log('Total bookings found:', allBookings.length);
+
+    // Mostrar detalles de cada booking
+    allBookings.forEach((b, i) => {
+      console.log(`Booking ${i + 1}:`, {
+        id: b.id.slice(-8),
+        status: b.status,
+        hasPayment: !!b.payment,
+        paymentStatus: b.payment?.status,
+      });
+    });
+
+    // Filtrar: Excluir solo las que están en PENDING_PAYMENT
+    const paidBookings = allBookings.filter((b) => b.status !== BookingStatus.PENDING_PAYMENT);
+
+    console.log('Bookings after filter (excluding PENDING_PAYMENT):', paidBookings.length);
+
+    // Agrupar por estado (sin pending_payment)
+    const grouped = {
+      waiting_acceptance: paidBookings.filter(
+        (b) => b.status === BookingStatus.WAITING_FOR_PROFESSIONAL,
+      ),
+      confirmed: paidBookings.filter((b) => b.status === BookingStatus.CONFIRMED),
+      in_progress: paidBookings.filter((b) => b.status === BookingStatus.IN_PROGRESS),
+      completed: paidBookings.filter((b) => b.status === BookingStatus.COMPLETED),
+      cancelled: paidBookings.filter((b) => b.status === BookingStatus.CANCELLED),
+    };
+
+    console.log('Grouped counts:', {
+      waiting_acceptance: grouped.waiting_acceptance.length,
+      confirmed: grouped.confirmed.length,
+      in_progress: grouped.in_progress.length,
+      completed: grouped.completed.length,
+      cancelled: grouped.cancelled.length,
+    });
+
+    return {
+      bookings: paidBookings,
+      count: paidBookings.length,
       grouped,
     };
   }

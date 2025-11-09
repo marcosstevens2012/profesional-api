@@ -100,6 +100,14 @@ export class BookingsController {
     return this._bookingsService.getClientBookings(req.user.userId);
   }
 
+  @Get('professional/my-bookings')
+  @UseGuards(JwtAuthGuard)
+  @Roles(Role.PROFESSIONAL)
+  @ApiOperation({ summary: "Get professional's all bookings" })
+  getProfessionalBookings(@Req() req: any) {
+    return this._bookingsService.getProfessionalBookings(req.user.userId);
+  }
+
   @Delete(':id')
   @ApiOperation({ summary: 'Cancel booking' })
   remove(@Param('id') id: string) {

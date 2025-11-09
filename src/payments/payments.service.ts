@@ -304,18 +304,22 @@ export class PaymentsService {
 
       // Si está aprobado, actualizar booking y procesar comisiones
       if (newStatus === PaymentStatus.COMPLETED) {
-        // Actualizar booking a WAITING_FOR_PROFESSIONAL
+        // Actualizar booking a WAITING_FOR_PROFESSIONAL y meetingStatus a WAITING
         await this._prisma.booking.update({
           where: { id: bookingId },
           data: {
             status: 'WAITING_FOR_PROFESSIONAL',
+            meetingStatus: 'WAITING', // Actualizar meetingStatus para que pueda ser aceptado
           },
         });
 
-        this.logger.log('✅ Booking updated to WAITING_FOR_PROFESSIONAL', {
-          booking_id: bookingId,
-          professional_id: booking.professionalId,
-        });
+        this.logger.log(
+          '✅ Booking updated to WAITING_FOR_PROFESSIONAL with meetingStatus WAITING',
+          {
+            booking_id: bookingId,
+            professional_id: booking.professionalId,
+          },
+        );
 
         // Crear notificación para el profesional
         await this._prisma.notification.create({
