@@ -144,7 +144,7 @@ export class EmailService {
    * Envía email de confirmación al cliente cuando el profesional acepta
    */
   async sendBookingConfirmationEmail(options: BookingConfirmationEmailOptions) {
-    const { to, clientName, professionalName, scheduledAt, jitsiRoom, bookingId } = options;
+    const { to, professionalName, scheduledAt, jitsiRoom, bookingId } = options;
 
     try {
       const scheduledDate = new Date(scheduledAt);

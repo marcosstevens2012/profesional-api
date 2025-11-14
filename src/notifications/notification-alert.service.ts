@@ -87,6 +87,7 @@ export class NotificationAlertService {
           scheduledAt,
           duration,
         })
+        .then(() => {})
         .catch((error) => {
           this.logger.error('❌ Email alert failed:', error);
         }),
@@ -122,6 +123,7 @@ export class NotificationAlertService {
           amount,
           currency,
         })
+        .then(() => {})
         .catch((error) => {
           this.logger.error('❌ Push notification failed:', error);
         }),
@@ -163,7 +165,7 @@ export class NotificationAlertService {
       await this.emailService.sendBookingConfirmationEmail({
         to: booking.client.email,
         clientName: booking.client.name || 'Cliente',
-        professionalName: booking.professional.name,
+        professionalName: booking.professional.name || 'Profesional',
         scheduledAt: booking.scheduledAt.toISOString(),
         jitsiRoom: booking.jitsiRoom || '',
         bookingId,

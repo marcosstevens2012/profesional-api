@@ -82,10 +82,15 @@ _ID de Reserva: ${bookingId}_`;
       this.logger.error(`❌ Failed to send WhatsApp booking alert to ${phone}:`, error);
 
       // Agregar detalles específicos del error si está disponible
-      if (error.response?.data) {
-        this.logger.error('Kapso API Error Details:', error.response.data);
+      if (
+        error instanceof Error &&
+        'response' in error &&
+        error.response &&
+        typeof error.response === 'object' &&
+        'data' in error.response
+      ) {
+        this.logger.error('Kapso API Error Details:', (error.response as any).data);
       }
-
       throw error;
     }
   }

@@ -3,7 +3,7 @@ import { Server } from 'socket.io';
 
 @Injectable()
 export class WebsocketService {
-  private server: Server;
+  private server: Server | null = null;
   private readonly logger = new Logger(WebsocketService.name);
 
   // Map para mantener conexiones de usuarios activos
@@ -69,7 +69,7 @@ export class WebsocketService {
 
     // Emitir a todas las conexiones del profesional
     connections.forEach((socketId) => {
-      this.server.to(socketId).emit('new_booking_alert', alertData);
+      this.server!.to(socketId).emit('new_booking_alert', alertData);
     });
 
     this.logger.log(
@@ -93,7 +93,7 @@ export class WebsocketService {
     }
 
     connections.forEach((socketId) => {
-      this.server.to(socketId).emit('notification', notification);
+      this.server!.to(socketId).emit('notification', notification);
     });
 
     this.logger.log(`Notification sent to user ${userId}`);
@@ -108,7 +108,7 @@ export class WebsocketService {
     const connections = this.userConnections.get(clientId);
     if (connections && connections.size > 0) {
       connections.forEach((socketId) => {
-        this.server.to(socketId).emit('booking_accepted', bookingData);
+        this.server!.to(socketId).emit('booking_accepted', bookingData);
       });
       this.logger.log(`Booking accepted notification sent to client ${clientId}`);
     }

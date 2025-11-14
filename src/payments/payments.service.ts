@@ -7,7 +7,6 @@ import { PaymentStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../database/prisma.service';
 import { NotificationAlertService } from '../notifications/notification-alert.service';
-import { WebsocketService } from '../websocket/websocket.service';
 import { CommissionService } from './commission.service';
 import {
   MPMerchantOrderResponse,
@@ -24,7 +23,6 @@ export class PaymentsService {
     private readonly _prisma: PrismaService,
     private readonly _mercadoPagoService: MercadoPagoService,
     private readonly _commissionService: CommissionService,
-    private readonly _websocketService: WebsocketService,
     private readonly _notificationAlertService: NotificationAlertService,
   ) {}
 
@@ -249,7 +247,21 @@ export class PaymentsService {
       // Buscar payment por bookingId (a través de la relación con booking)
       const booking = await this._prisma.booking.findUnique({
         where: { id: bookingId },
-        include: { payment: true, professional: true },
+        include: {
+          payment: true,
+          professional: {
+            include: {
+              user: true,
+            },
+          },
+          client: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
       });
 
       if (!booking || !booking.payment) {
@@ -326,7 +338,7 @@ export class PaymentsService {
         );
 
         // Crear notificación para el profesional
-        const notification = await this._prisma.notification.create({
+        await this._prisma.notification.create({
           data: {
             userId: booking.professional.userId, // Notificar al usuario del profesional
             type: 'BOOKING_REQUEST',
@@ -350,12 +362,12 @@ export class PaymentsService {
         await this._notificationAlertService.sendBookingPaidAlerts({
           bookingId: booking.id,
           professionalUserId: booking.professional.userId,
-          professionalEmail: booking.professional.user.email,
+          professionalEmail: booking.professional.user?.email || booking.professional.email || '',
           professionalPhone: booking.professional.phone || undefined,
-          clientName: booking.client.name || 'Cliente',
-          clientEmail: booking.client.email,
-          serviceDescription: booking.serviceDescription || 'Consulta profesional',
-          amount: payment.amount,
+          clientName: booking.client?.name || 'Cliente',
+          clientEmail: booking.client?.email || '',
+          serviceDescription: (booking as any).serviceDescription || 'Consulta profesional',
+          amount: Number(payment.amount),
           currency: payment.currency || 'ARS',
           scheduledAt: booking.scheduledAt.toISOString(),
           duration: booking.duration,
@@ -364,7 +376,7 @@ export class PaymentsService {
         this.logger.log('🎯 All booking alerts sent (WebSocket, Email, WhatsApp, Push)', {
           professional_user_id: booking.professional.userId,
           booking_id: bookingId,
-          professional_email: booking.professional.user.email,
+          professional_email: booking.professional.user?.email || booking.professional.email,
           professional_phone: booking.professional.phone,
         });
 

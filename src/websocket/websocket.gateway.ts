@@ -26,7 +26,7 @@ import { WebsocketService } from './websocket.service';
 @Injectable()
 export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   private readonly logger = new Logger(WebsocketGateway.name);
 

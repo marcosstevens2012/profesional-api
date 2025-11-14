@@ -1,8 +1,22 @@
 import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { NotificationAlertService } from '../notifications/notification-alert.service';
 import { WebsocketService } from '../websocket/websocket.service';
+
+interface TestBookingAlertDto {
+  clientName?: string;
+  serviceDescription?: string;
+  amount?: number;
+  phone?: string;
+}
+
+interface AuthRequest {
+  user: {
+    userId: string;
+    email: string;
+  };
+}
 
 @ApiTags('testing')
 @Controller('testing')
@@ -19,7 +33,7 @@ export class TestingController {
     summary: 'Test booking alert system',
     description: 'Simula una alerta de booking pagado para testing',
   })
-  async testBookingAlert(@Body() body: any, @Req() req: any) {
+  async testBookingAlert(@Body() body: TestBookingAlertDto, @Req() req: AuthRequest) {
     const userId = req.user.userId;
 
     // Datos de prueba
@@ -50,7 +64,7 @@ export class TestingController {
       return {
         success: false,
         message: 'Failed to send test alert',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -60,7 +74,7 @@ export class TestingController {
     summary: 'Test WebSocket connection',
     description: 'Envía un ping directo via WebSocket',
   })
-  async testWebSocketPing(@Req() req: any) {
+  async testWebSocketPing(@Req() req: AuthRequest) {
     const userId = req.user.userId;
 
     try {
@@ -83,7 +97,7 @@ export class TestingController {
       return {
         success: false,
         message: 'Failed to send WebSocket test',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -93,7 +107,7 @@ export class TestingController {
     summary: 'Test direct booking alert via WebSocket',
     description: 'Envía una alerta de booking directamente via WebSocket',
   })
-  async testDirectBookingAlert(@Body() body: any, @Req() req: any) {
+  async testDirectBookingAlert(@Body() body: TestBookingAlertDto, @Req() req: AuthRequest) {
     const userId = req.user.userId;
 
     const alertData = {
@@ -122,7 +136,7 @@ export class TestingController {
       return {
         success: false,
         message: 'Failed to send direct booking alert',
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
