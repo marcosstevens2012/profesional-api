@@ -7,6 +7,7 @@ import {
 import { BookingStatus, MeetingStatus } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../database/prisma.service';
+import { NotificationAlertService } from '../notifications/notification-alert.service';
 import { MercadoPagoService } from '../payments/mercadopago.service';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class BookingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mercadoPagoService: MercadoPagoService,
+    private readonly notificationAlertService: NotificationAlertService,
   ) {}
 
   async create(createBookingDto: any) {
@@ -198,6 +200,14 @@ export class BookingsService {
     });
 
     console.log('✅ Notification created for client', {
+      client_id: booking.clientId,
+      booking_id: bookingId,
+    });
+
+    // 🎯 ENVIAR ALERTAS DE CONFIRMACIÓN AL CLIENTE
+    await this.notificationAlertService.sendBookingAcceptedAlerts(bookingId, booking.clientId);
+
+    console.log('🎯 Booking accepted alerts sent to client', {
       client_id: booking.clientId,
       booking_id: bookingId,
     });

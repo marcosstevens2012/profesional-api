@@ -23,7 +23,9 @@ import { PaymentsModule } from './payments/payments.module';
 import { ProfilesModule } from './profiles/profiles.module';
 import { SearchModule } from './search/search.module';
 import { ServicesModule } from './services/services.module';
+import { TestingModule } from './testing/testing.module';
 import { UsersModule } from './users/users.module';
+import { WebsocketModule } from './websocket/websocket.module';
 
 @Module({
   imports: [
@@ -71,6 +73,7 @@ import { UsersModule } from './users/users.module';
 
     // Feature modules
     DatabaseModule,
+    WebsocketModule,
     HealthModule,
     AuthModule,
     UsersModule,
@@ -82,6 +85,7 @@ import { UsersModule } from './users/users.module';
     NotificationsModule,
     ExamplesModule,
     AdminModule,
+    TestingModule,
     GlobalConfigModule,
   ],
   controllers: [AppController],
